@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import TopNav from "@/components/top-nav";
 import type { BotProfile, LiveEvent, LiveSession, AiTrace } from "@/lib/types";
@@ -64,7 +64,6 @@ interface AiLogBlock {
 export default function LivePage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
-  const router = useRouter();
 
   const [data, setData] = useState<SessionData | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -289,29 +288,35 @@ export default function LivePage() {
     }
   };
 
-  /* ---------- 结束直播（不阻塞：立即关弹窗 → 最多等 3s 接口 → 跳转复盘） ---------- */
-  const handleEnd = async () => {
+  /* ---------- 结束直播（不等待任何接口：立即关弹窗 → 整页跳转复盘；keepalive 保证结束请求完成） ---------- */
+  const handleEnd = () => {
+    if (ending) return;
     setEnding(true);
-    endedRef.current = true;
+    endedRef.current = true; // 阻止 beforeunload 拦截与中断上报
     setEndOpen(false); // 弹窗立即关闭，用户无感
     const replayUrl = `/app/replay/${id}`;
-    // keepalive 确保即使页面跳转，结束请求也能完成落库
-    const post = fetch(`/api/sessions/${id}/end`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ interrupted: false }),
-      signal: AbortSignal.timeout(15000),
-      keepalive: true,
-    }).catch(() => undefined);
-    // 接口通常 1~2s 返回；超过 3s 不再等，跳转后接口自行完成
-    await Promise.race([post, new Promise((r) => setTimeout(r, 3000))]);
-    router.push(replayUrl);
-    // 兜底：客户端路由跳转失败（如服务器重启后旧页面 chunk 404）时，强制整页跳转
+    try {
+      // keepalive：即使页面立即卸载，结束落库请求仍会完成
+      void fetch(`/api/sessions/${id}/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interrupted: false }),
+        signal: AbortSignal.timeout(15000),
+        keepalive: true,
+      }).catch(() => undefined);
+    } catch {
+      /* 落库失败不阻塞跳转，复盘页有兜底轮询 */
+    }
+    // 整页跳转（比客户端路由可靠：不依赖 RSC 请求成功）
+    setTimeout(() => window.location.assign(replayUrl), 200);
+    // 兜底：8s 后仍在直播页 → 复位状态，允许用户重试
     setTimeout(() => {
-      if (!window.location.pathname.startsWith(`/app/replay/${id}`)) {
-        window.location.assign(replayUrl);
+      if (!window.location.pathname.startsWith(`/app/replay/`)) {
+        setEnding(false);
+        endedRef.current = false;
+        setBanner("结束请求可能未完成，页面已恢复，请重试或直接刷新");
       }
-    }, 2500);
+    }, 8000);
   };
 
   /* ---------- 热度迷你曲线 ---------- */
@@ -727,8 +732,12 @@ export default function LivePage() {
               <h3>确定结束这场排练？</h3>
               <p className="modal-desc">结束后将立即生成复盘报告。</p>
               <div className="modal-actions">
-                <button className="pill pill-ghost" disabled={ending} onClick={() => setEndOpen(false)}>继续直播</button>
-                <button className="pill pill-primary loading" disabled={ending} onClick={() => void handleEnd()}>
+                <button className="pill pill-ghost" onClick={() => setEndOpen(false)}>继续直播</button>
+                <button
+                  className={`pill pill-primary ${ending ? "loading" : ""}`}
+                  disabled={ending}
+                  onClick={() => handleEnd()}
+                >
                   {ending ? "结束中" : "结束并复盘"}
                 </button>
               </div>
