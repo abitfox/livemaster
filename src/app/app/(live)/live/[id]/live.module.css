@@ -559,10 +559,10 @@
 /* ---------- 右栏 ---------- */
 .colRight {
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-left: 1px solid var(--bg-panel-raised);
-  scrollbar-width: thin;
-  scrollbar-color: var(--bg-panel-raised) transparent;
 }
 .colRight::-webkit-scrollbar {
   width: 6px;
@@ -572,10 +572,13 @@
   border-radius: 3px;
 }
 .rightCards {
+  flex: 1;
+  min-height: 0;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: hidden;
 }
 .rcardTitle {
   font-size: 12px;
@@ -662,7 +665,7 @@
     display: flex;
   }
   .grid.tabData .colRight {
-    display: block;
+    display: flex;
   }
   .mobileTabs {
     display: flex;
@@ -677,55 +680,67 @@
   }
 }
 
-/* ===== AI 引擎观测面板 ===== */
-.aiCard { display: flex; flex-direction: column; gap: 10px; }
-
-.aiHead { display: flex; align-items: center; justify-content: space-between; }
-
-.aiStatus {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 600;
-  padding: 3px 10px; border-radius: 999px;
-}
-.aiStatusDot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.aiOk { color: var(--success); background: rgba(61, 214, 140, 0.1); }
-.aiWarn { color: var(--warning, #FFB84D); background: rgba(255, 184, 77, 0.12); }
-
-.aiMeta { display: flex; align-items: center; gap: 12px; font-size: 12px; }
-
-.aiErr {
-  font-size: 11px; color: var(--danger);
-  background: rgba(255, 77, 106, 0.08);
-  border: 1px solid rgba(255, 77, 106, 0.2);
-  border-radius: 6px; padding: 6px 8px;
-  word-break: break-all;
+/* ===== AI 引擎观测：单一输出流（占满右栏剩余高度，贴底跟随） ===== */
+.aiCard {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
 }
 
-.aiSec { font-size: 12px; }
-.aiSec summary {
-  cursor: pointer; color: var(--text-secondary);
-  user-select: none; padding: 4px 0;
-  font-weight: 500;
-}
-.aiSec summary:hover { color: var(--text-primary); }
-.aiPre {
-  margin: 4px 0 0; padding: 8px;
-  background: rgba(255, 255, 255, 0.03);
+.aiHead { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+
+.aiOut {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-panel-raised) transparent;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  font-size: 11px; line-height: 1.5;
+  border-radius: 8px;
+}
+.aiOut::-webkit-scrollbar { width: 6px; }
+.aiOut::-webkit-scrollbar-thumb { background: var(--bg-panel-raised); border-radius: 3px; }
+
+.aiEmpty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 12px 4px;
+}
+
+/* 每次调用的分隔头（时间 · 模型 · 耗时 · 事件数 · 状态） */
+.aiLogHead {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 8px 0 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.03em;
+}
+.aiLogHead:first-child { border-top: none; padding-top: 2px; }
+
+.aiLogSec { margin-top: 4px; }
+.aiLogErr { margin-top: 4px; }
+.aiLogErr .aiLogTitle { color: var(--danger); }
+
+.aiLogTitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 4px 0 2px;
+  user-select: none;
+}
+
+.aiPre {
+  margin: 0;
+  padding: 0 2px 6px;
+  font-size: 11px;
+  line-height: 1.55;
   font-family: var(--font-mono, ui-monospace, monospace);
   color: var(--text-secondary);
-  max-height: 180px; overflow: auto;
-  white-space: pre-wrap; word-break: break-all;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
-
-.aiHist { display: flex; flex-direction: column; gap: 4px; }
-.aiHistRow {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; padding: 3px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
-}
-.aiHistRow:last-child { border-bottom: none; }
-.aiOkTxt { color: var(--success); font-weight: 600; }
-.aiWarnTxt { color: var(--warning, #FFB84D); font-weight: 600; }

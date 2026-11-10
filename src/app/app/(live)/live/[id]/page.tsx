@@ -50,6 +50,14 @@ interface SessionData {
   events: LiveEvent[];
 }
 
+/** AI 引擎输出流的日志块 */
+interface AiLogBlock {
+  id: string;
+  kind: "head" | "sec" | "err";
+  title?: string;
+  text: string;
+}
+
 export default function LivePage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
@@ -70,7 +78,7 @@ export default function LivePage() {
   const [newCount, setNewCount] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
-  const [aiTraces, setAiTraces] = useState<AiTrace[]>([]);
+  const [aiLog, setAiLog] = useState<AiLogBlock[]>([]);
   const [mobileTab, setMobileTab] = useState<"stage" | "chat" | "data">("stage");
 
   const pausedRef = useRef(false);
@@ -80,6 +88,8 @@ export default function LivePage() {
   const sayRef = useRef<HTMLTextAreaElement>(null);
   const atBottomRef = useRef(true);
   atBottomRef.current = atBottom;
+  const aiLogRef = useRef<HTMLDivElement>(null);
+  const aiAtBottomRef = useRef(true);
 
   const session = data?.session ?? null;
   const bots = data?.bots ?? [];
@@ -133,7 +143,16 @@ export default function LivePage() {
         return n;
       });
       if (payload.aiTrace) {
-        setAiTraces((prev) => [payload.aiTrace as AiTrace, ...prev].slice(0, 8));
+        const t = payload.aiTrace;
+        const stamp = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+        const blocks: AiLogBlock[] = [
+          { id: `${t.ts}-h`, kind: "head", text: `${stamp} · ${t.model} · ${t.durationMs}ms · ${t.eventCount} 事件 · ${t.fallback ? "模板降级" : "AI 正常"}` },
+        ];
+        if (t.prompt) blocks.push({ id: `${t.ts}-req`, kind: "sec", title: "发出请求", text: t.prompt });
+        if (t.thinking) blocks.push({ id: `${t.ts}-think`, kind: "sec", title: "深度思考", text: t.thinking });
+        if (t.output) blocks.push({ id: `${t.ts}-out`, kind: "sec", title: "输出信息", text: t.output });
+        if (t.error) blocks.push({ id: `${t.ts}-err`, kind: "err", title: "错误", text: t.error });
+        setAiLog((prev) => [...prev, ...blocks].slice(-60));
       }
       const q = payload.newEvents.find((e) => e.type === "question");
       if (q) setBanner(`新提问：${q.content}，点击查看`);
@@ -166,6 +185,17 @@ export default function LivePage() {
       clearInterval(t);
     };
   }, [id, applyTick]);
+
+  /* ---------- AI 输出块贴底：新内容自动滚到底部，用户上滑后暂停跟随 ---------- */
+  useEffect(() => {
+    const el = aiLogRef.current;
+    if (el && aiAtBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [aiLog]);
+  const onAiScroll = () => {
+    const el = aiLogRef.current;
+    if (!el) return;
+    aiAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
 
   /* ---------- 新提问横幅 8s 自动消失 ---------- */
   useEffect(() => {
@@ -639,63 +669,26 @@ export default function LivePage() {
                   </div>
                 </div>
 
-                {/* AI 引擎观测面板 */}
+                {/* AI 引擎观测：单一输出流，贴底自动跟随 */}
                 <div className={`rcard ${styles.aiCard}`}>
                   <div className={styles.aiHead}>
                     <div className={styles.rcardTitle}>AI 引擎</div>
-                    {aiTraces[0] && (
-                      <span className={`${styles.aiStatus} ${aiTraces[0].fallback ? styles.aiWarn : styles.aiOk}`}>
-                        <i className={styles.aiStatusDot} />
-                        {aiTraces[0].fallback ? "模板降级" : "AI 正常"}
-                      </span>
+                  </div>
+                  <div className={styles.aiOut} ref={aiLogRef} onScroll={onAiScroll}>
+                    {aiLog.length === 0 && (
+                      <div className={styles.aiEmpty}>等待引擎调度…（每 10 秒一次，开播后自动输出）</div>
+                    )}
+                    {aiLog.map((b) =>
+                      b.kind === "head" ? (
+                        <div key={b.id} className={styles.aiLogHead}>{b.text}</div>
+                      ) : (
+                        <div key={b.id} className={b.kind === "err" ? styles.aiLogErr : styles.aiLogSec}>
+                          <div className={styles.aiLogTitle}>── {b.title} ──</div>
+                          <pre className={styles.aiPre}>{b.text}</pre>
+                        </div>
+                      ),
                     )}
                   </div>
-                  {aiTraces[0] ? (
-                    <>
-                      <div className={styles.aiMeta}>
-                        <span className={styles.num}>{aiTraces[0].model}</span>
-                        <span className={`${styles.num} text-ter`}>{aiTraces[0].durationMs}ms</span>
-                        <span className="num text-ter">{aiTraces[0].eventCount} 事件</span>
-                      </div>
-                      {aiTraces[0].error && <div className={styles.aiErr}>{aiTraces[0].error}</div>}
-                      {aiTraces[0].thinking && (
-                        <details className={styles.aiSec}>
-                          <summary>深度思考</summary>
-                          <pre className={styles.aiPre}>{aiTraces[0].thinking}</pre>
-                        </details>
-                      )}
-                      <details className={styles.aiSec}>
-                        <summary>输出信息</summary>
-                        <pre className={styles.aiPre}>{aiTraces[0].output || "（空）"}</pre>
-                      </details>
-                      <details className={styles.aiSec}>
-                        <summary>发出请求</summary>
-                        <pre className={styles.aiPre}>{aiTraces[0].prompt || "（无）"}</pre>
-                      </details>
-                    </>
-                  ) : (
-                    <div className="text-ter" style={{ fontSize: 12 }}>
-                      等待引擎调度…（每 10 秒一次，开播后自动出现）
-                    </div>
-                  )}
-                  {aiTraces.length > 1 && (
-                    <details className={styles.aiSec}>
-                      <summary>历史调用 ({aiTraces.length})</summary>
-                      <div className={styles.aiHist}>
-                        {aiTraces.map((t, i) => (
-                          <div key={`${t.ts}-${i}`} className={styles.aiHistRow}>
-                            <span className={t.fallback ? styles.aiWarnTxt : styles.aiOkTxt}>
-                              {t.fallback ? "降级" : "正常"}
-                            </span>
-                            <span className={`${styles.num} text-ter`}>{t.model}</span>
-                            <span className={`${styles.num} text-ter`}>{t.durationMs}ms</span>
-                            <span className={`${styles.num} text-ter`}>{t.eventCount}条</span>
-                            {t.error && <span className={styles.aiWarnTxt} title={t.error}>⚠</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
                 </div>
 
                 <p className="disclaimer">AI 虚拟观众 · 模拟直播环境</p>
