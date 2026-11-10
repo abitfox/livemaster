@@ -206,6 +206,8 @@ export function buildTickPrompt(opts: {
   onlineBots: BotProfile[];
   recentWindow: string[];
   hostContent?: string;
+  /** 稍早的主播发言（超出本 tick 反应窗口但仍在消息列表中，避免指令与列表自相矛盾） */
+  hostEarlierContent?: string;
   unansweredQuestion?: string;
   heatLevel: number;
   pushedThisTick: boolean;
@@ -238,9 +240,11 @@ export function buildTickPrompt(opts: {
         `当前热度等级：L${opts.heatLevel}${opts.pushedThisTick ? "（刚发生流量推送，新观众涌入，弹幕变热闹）" : ""}\n` +
         (opts.hostContent
           ? `主播刚刚说：「${opts.hostContent}」——观众针对这段话做出反应（提问/赞同/质疑/被逗乐）。`
-          : "主播暂时没说话，观众自由闲聊、讨论主题、或对之前内容追问。") +
+          : opts.hostEarlierContent
+            ? `主播最近一条发言是稍早说的：「${opts.hostEarlierContent}」。观众可以围绕这段内容追问细节、表达赞同或质疑，也可以讨论主题。`
+            : "主播还没有发言，观众自由闲聊、讨论主题、或对开场期待一下。") +
         (opts.unansweredQuestion
-          ? `\n有一个未被回应的提问：「${opts.unansweredQuestion}」，提问者可能催促或表达不满。`
+          ? `\n有一个未被回应的提问：「${opts.unansweredQuestion}」，提问者可能在等待回应；若提问者不在发言名单中，可由其他观众替他催促或表达不满。`
           : "") +
         `\n最近直播间消息：\n${opts.recentWindow.slice(-10).join("\n") || "（开场，还没有消息）"}\n\n可发言的观众：\n${speakerDesc}`,
     },

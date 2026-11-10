@@ -40,6 +40,11 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
   const hostRecent = recentEvents
     .filter((e) => e.type === "host" && elapsedSec * 1000 - e.offsetMs <= (tickSec + 5) * 1000)
     .sort((a, b) => b.offsetMs - a.offsetMs)[0];
+  // 稍早发言回退：超出反应窗口时，取最近一条 host 事件作为「稍早发言」传给 prompt，
+  // 避免出现「主播暂时没说话」与消息列表中主播发言自相矛盾的指令。
+  const hostEarlier = !hostContent && !hostRecent
+    ? recentEvents.filter((e) => e.type === "host").sort((a, b) => b.offsetMs - a.offsetMs)[0]?.content
+    : undefined;
   const hostJustSpoke = !!hostContent || !!hostRecent;
   const hostContentResolved = hostContent ?? hostRecent?.content;
   if (hostJustSpoke) session.silenceSec = 0; // 发言即打破冷场（供后续判定参照）
@@ -132,6 +137,7 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
     onlineBots,
     recentEvents,
     hostContent: hostContentResolved,
+    hostEarlierContent: hostEarlier,
     unanswered: unanswered[0]?.content,
     heatLevel: decision.newLevel,
     pushedThisTick: decision.pushInCount > 0,
@@ -200,6 +206,7 @@ async function generateTickEvents(ctx: {
   onlineBots: BotProfile[];
   recentEvents: LiveEvent[];
   hostContent?: string;
+  hostEarlierContent?: string;
   unanswered?: string;
   heatLevel: number;
   pushedThisTick: boolean;
@@ -226,6 +233,7 @@ async function generateTickEvents(ctx: {
           return `${who}: ${e.content}`;
         }),
         hostContent: ctx.hostContent,
+        hostEarlierContent: ctx.hostEarlierContent,
         unansweredQuestion: ctx.unanswered,
         heatLevel: ctx.heatLevel,
         pushedThisTick: ctx.pushedThisTick,
@@ -298,7 +306,7 @@ async function generateTickEvents(ctx: {
     // 模板降级
     const templates = templateTickEvents(
       ctx.speakerIds.length ? ctx.speakerIds : ctx.speakers.map((s) => s.id),
-      ctx.hostContent,
+      ctx.hostContent ?? ctx.hostEarlierContent,
     );
     for (const ev of templates) {
       const bot = ctx.speakers.find((b) => b.id === ev.botId);
