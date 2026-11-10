@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import TopNav from "@/components/top-nav";
-import type { BotProfile, LiveEvent, LiveSession } from "@/lib/types";
+import type { BotProfile, LiveEvent, LiveSession, AiTrace } from "@/lib/types";
 import styles from "./live.module.css";
 
 const LEVEL_NAMES = ["冷启动", "起量", "加热", "高热"];
@@ -64,13 +64,13 @@ export default function LivePage() {
   const [paused, setPaused] = useState(false);
   const [moods, setMoods] = useState<Record<string, number>>({});
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const [ending, setEnding] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const [newCount, setNewCount] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
+  const [aiTraces, setAiTraces] = useState<AiTrace[]>([]);
   const [mobileTab, setMobileTab] = useState<"stage" | "chat" | "data">("stage");
 
   const pausedRef = useRef(false);
@@ -122,7 +122,7 @@ export default function LivePage() {
 
   /* ---------- tick 增量应用 ---------- */
   const applyTick = useCallback(
-    (payload: { session: LiveSession; newEvents: LiveEvent[]; bots: { id: string; mood: number }[]; onlineCount: number }, extra: LiveEvent[] = []) => {
+    (payload: { session: LiveSession; newEvents: LiveEvent[]; bots: { id: string; mood: number }[]; onlineCount: number; aiTrace?: AiTrace }, extra: LiveEvent[] = []) => {
       setData((d) => (d ? { ...d, session: payload.session } : d));
       setEvents((prev) => mergeEvents(prev, [...extra, ...payload.newEvents]));
       setOnline(payload.onlineCount);
@@ -132,6 +132,9 @@ export default function LivePage() {
         for (const b of payload.bots) n[b.id] = b.mood;
         return n;
       });
+      if (payload.aiTrace) {
+        setAiTraces((prev) => [payload.aiTrace as AiTrace, ...prev].slice(0, 8));
+      }
       const q = payload.newEvents.find((e) => e.type === "question");
       if (q) setBanner(`新提问：${q.content}，点击查看`);
     },
@@ -216,11 +219,19 @@ export default function LivePage() {
     setNewCount(0);
   };
 
-  /* ---------- 发送发言（两段式：主播消息立即上屏，观众反应由 tick 延迟送达） ---------- */
+  /* ---------- 发送发言（乐观上屏：消息瞬间显示，POST 后台执行；观众反应由 tick 送达） ---------- */
   const handleSend = async () => {
     const content = input.trim();
-    if (!content || sending || paused || ending) return;
-    setSending(true);
+    if (!content || paused || ending) return;
+    const tempId = `tmp-${Date.now()}`;
+    const offsetMs = elapsed * 1000;
+    // 1. 乐观上屏：立即显示主播消息并清空输入框
+    setEvents((prev) => [
+      ...prev,
+      { id: tempId, sessionId: id, type: "host", botId: null, content, meta: {}, offsetMs, createdAt: new Date().toISOString() } as LiveEvent,
+    ]);
+    setInput("");
+    // 2. 后台落库；完成后用真实事件替换临时消息
     try {
       const res = await fetch("/api/live/send", {
         method: "POST",
@@ -228,15 +239,20 @@ export default function LivePage() {
         body: JSON.stringify({ sessionId: id, content }),
       });
       const json = await res.json();
-      if (res.ok) {
-        setEvents((prev) => mergeEvents(prev, [json.hostEvent as LiveEvent]));
+      if (res.ok && json.hostEvent) {
+        setEvents((prev) => {
+          const withoutTemp = prev.filter((e) => e.id !== tempId);
+          return mergeEvents(withoutTemp, [json.hostEvent as LiveEvent]);
+        });
         if (json.session) setData((d) => (d ? { ...d, session: json.session } : d));
-        setInput("");
+      } else {
+        throw new Error(json.error ?? "发送失败");
       }
     } catch {
-      /* 静默 */
-    } finally {
-      setSending(false);
+      // 发送失败：临时消息标记为失败，输入框恢复内容便于重发
+      setEvents((prev) => prev.filter((e) => e.id !== tempId));
+      setInput(content);
+      setBanner("发送失败，内容已恢复到输入框，请重试");
     }
   };
 
@@ -532,7 +548,7 @@ export default function LivePage() {
                   <button
                     className="pill pill-primary breath"
                     style={{ height: 44 }}
-                    disabled={sending || !input.trim()}
+                    disabled={!input.trim()}
                     onClick={() => void handleSend()}
                   >
                     发送
@@ -612,6 +628,65 @@ export default function LivePage() {
                     <div className={styles.statRow}><span>提问总数</span><span className={styles.statNum}>{session?.stats.questionCount ?? 0}</span></div>
                     <div className={styles.statRow}><span>礼物数</span><span className={styles.statNum}>{session?.stats.giftCount ?? 0}</span></div>
                   </div>
+                </div>
+
+                {/* AI 引擎观测面板 */}
+                <div className={`rcard ${styles.aiCard}`}>
+                  <div className={styles.aiHead}>
+                    <div className={styles.rcardTitle}>AI 引擎</div>
+                    {aiTraces[0] && (
+                      <span className={`${styles.aiStatus} ${aiTraces[0].fallback ? styles.aiWarn : styles.aiOk}`}>
+                        <i className={styles.aiStatusDot} />
+                        {aiTraces[0].fallback ? "模板降级" : "AI 正常"}
+                      </span>
+                    )}
+                  </div>
+                  {aiTraces[0] ? (
+                    <>
+                      <div className={styles.aiMeta}>
+                        <span className={styles.num}>{aiTraces[0].model}</span>
+                        <span className={`${styles.num} text-ter`}>{aiTraces[0].durationMs}ms</span>
+                        <span className="num text-ter">{aiTraces[0].eventCount} 事件</span>
+                      </div>
+                      {aiTraces[0].error && <div className={styles.aiErr}>{aiTraces[0].error}</div>}
+                      {aiTraces[0].thinking && (
+                        <details className={styles.aiSec}>
+                          <summary>深度思考</summary>
+                          <pre className={styles.aiPre}>{aiTraces[0].thinking}</pre>
+                        </details>
+                      )}
+                      <details className={styles.aiSec}>
+                        <summary>输出信息</summary>
+                        <pre className={styles.aiPre}>{aiTraces[0].output || "（空）"}</pre>
+                      </details>
+                      <details className={styles.aiSec}>
+                        <summary>发出请求</summary>
+                        <pre className={styles.aiPre}>{aiTraces[0].prompt || "（无）"}</pre>
+                      </details>
+                    </>
+                  ) : (
+                    <div className="text-ter" style={{ fontSize: 12 }}>
+                      等待引擎调度…（每 10 秒一次，开播后自动出现）
+                    </div>
+                  )}
+                  {aiTraces.length > 1 && (
+                    <details className={styles.aiSec}>
+                      <summary>历史调用 ({aiTraces.length})</summary>
+                      <div className={styles.aiHist}>
+                        {aiTraces.map((t, i) => (
+                          <div key={`${t.ts}-${i}`} className={styles.aiHistRow}>
+                            <span className={t.fallback ? styles.aiWarnTxt : styles.aiOkTxt}>
+                              {t.fallback ? "降级" : "正常"}
+                            </span>
+                            <span className={`${styles.num} text-ter`}>{t.model}</span>
+                            <span className={`${styles.num} text-ter`}>{t.durationMs}ms</span>
+                            <span className={`${styles.num} text-ter`}>{t.eventCount}条</span>
+                            {t.error && <span className={styles.aiWarnTxt} title={t.error}>⚠</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
 
                 <p className="disclaimer">AI 虚拟观众 · 模拟直播环境</p>

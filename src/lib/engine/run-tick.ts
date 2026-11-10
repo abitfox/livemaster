@@ -11,7 +11,7 @@ import {
 import { stepDirector, MAX_ACTIVE_BOTS, buildTickPrompt } from "@/lib/engine/director";
 import { templateTickEvents, templateBots } from "@/lib/engine/templates";
 import { isAiEnabled, llmJson, TICK_MODEL } from "@/lib/ai/llm";
-import type { LiveEvent, TickResponse, BotProfile, EventType } from "@/lib/types";
+import type { LiveEvent, TickResponse, BotProfile, EventType, AiTrace } from "@/lib/types";
 
 interface NewEventDraft {
   botId?: string | null;
@@ -124,7 +124,7 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
     (id) => !decision.exits.some((e) => e.botId === id),
   );
   const speakers = onlineBots.filter((b) => speakerIds.includes(b.id));
-  const eventsGenerated = await generateTickEvents({
+  const aiTrace = await generateTickEvents({
     sessionId,
     topic: session.topic,
     scene: session.scene,
@@ -171,12 +171,12 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
 
   // 组装响应
   const newSession = await loadSession(sessionId);
-  void eventsGenerated;
   return {
     session: { ...newSession, stats },
     newEvents: insertedEvents,
     bots: remainingOnline.map((b) => ({ id: b.id, mood: b.mood, status: "online" })),
     onlineCount,
+    aiTrace: aiTrace ?? undefined,
   };
 }
 
@@ -206,11 +206,13 @@ async function generateTickEvents(ctx: {
   elapsedSec: number;
   drafts: NewEventDraft[];
   speakerIds: string[];
-}): Promise<void> {
+}): Promise<AiTrace | null> {
   const aiOn = isAiEnabled() && ctx.speakers.length > 0;
   let produced = false;
+  let trace: AiTrace | null = null;
 
   if (aiOn) {
+    const t0 = Date.now();
     try {
       const prompt = buildTickPrompt({
         topic: ctx.topic,
@@ -231,12 +233,15 @@ async function generateTickEvents(ctx: {
       const res = await llmJson<{
         events: { botId: string; type: string; content: string }[];
       }>(prompt, {
-        // tick 高频且要求实时：轻量模型 + 20s 超时降级模板
-        maxTokens: 1200,
+        // deepseek-flash 等思考型模型会先输出思考（reasoning_content），思考占用 token 预算；
+        // maxTokens 太小会导致 JSON 截断 → 解析失败 → 静默降级模板（表现为弹幕不贴题），预算给足
+        maxTokens: 3000,
         model: TICK_MODEL,
         timeoutMs: 20_000,
       });
+      const promptText = prompt.map((m) => `【${m.role === "system" ? "系统" : "请求"}】${m.content}`).join("\n\n");
       const validTypes: EventType[] = ["chat", "question", "gift", "mood_change", "follow"];
+      let count = 0;
       for (const ev of res.data?.events ?? []) {
         if (!validTypes.includes(ev.type as EventType)) continue;
         const bot = ctx.speakers.find((b) => b.id === ev.botId)
@@ -249,18 +254,43 @@ async function generateTickEvents(ctx: {
           offsetMs: ctx.elapsedSec * 1000,
           meta: { name: bot.name, gradient: bot.gradient },
         });
+        count++;
         // 情绪联动：mood_change 应用到 Bot
         if (ev.type === "mood_change") {
           await updateBot(ctx.sessionId, bot.id, { mood: bot.mood + 15 });
         }
       }
-      produced = true;
+      produced = count > 0;
+      trace = {
+        kind: "tick",
+        model: res.model,
+        durationMs: Date.now() - t0,
+        prompt: promptText,
+        thinking: res.reasoning ?? "",
+        output: res.raw,
+        eventCount: count,
+        fallback: !produced,
+        error: produced ? undefined : "模型未产出有效事件",
+        ts: new Date().toISOString(),
+      };
       const { requireUserId } = await import("@/lib/auth");
       const userId = await requireUserId();
       await logUsage(userId, ctx.sessionId, "tick", res.usage);
     } catch (e) {
       console.error("[tick:ai]", e);
       produced = false;
+      trace = {
+        kind: "tick",
+        model: TICK_MODEL,
+        durationMs: Date.now() - t0,
+        prompt: "",
+        thinking: "",
+        output: "",
+        eventCount: 0,
+        fallback: true,
+        error: e instanceof Error ? e.message.slice(0, 200) : "AI 调用失败",
+        ts: new Date().toISOString(),
+      };
     }
   }
 
@@ -281,5 +311,22 @@ async function generateTickEvents(ctx: {
         meta: { name: bot.name, gradient: bot.gradient, template: true },
       });
     }
+    if (!trace) {
+      trace = {
+        kind: "tick",
+        model: "local-template",
+        durationMs: 0,
+        prompt: "",
+        thinking: "",
+        output: templates.map((t) => t.content).join("\n"),
+        eventCount: templates.length,
+        fallback: true,
+        error: aiOn ? undefined : "未配置 LLM_API_KEY，走本地模板",
+        ts: new Date().toISOString(),
+      };
+    } else {
+      trace.fallback = true;
+    }
   }
+  return trace;
 }

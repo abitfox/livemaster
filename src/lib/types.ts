@@ -127,10 +127,30 @@ export interface AiReport {
   generatedAt: string;
 }
 
+/** AI 调用观测记录（直播页 AI 引擎面板展示用） */
+export interface AiTrace {
+  kind: "tick" | "report" | "bots_gen";
+  model: string;
+  durationMs: number;
+  /** 发送给模型的完整 prompt（system + user） */
+  prompt: string;
+  /** 模型的深度思考过程（reasoning_content） */
+  thinking: string;
+  /** 模型原始输出 */
+  output: string;
+  /** 解析出的有效事件数 */
+  eventCount: number;
+  /** 是否降级为本地模板 */
+  fallback: boolean;
+  error?: string;
+  ts: string;
+}
+
 /** tick 响应：客户端据此增量渲染 */
 export interface TickResponse {
   session: LiveSession;
   newEvents: LiveEvent[];
   bots: { id: string; mood: number; status: string }[];
   onlineCount: number;
+  aiTrace?: AiTrace;
 }

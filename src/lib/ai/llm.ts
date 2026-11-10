@@ -44,6 +44,12 @@ export interface LlmUsage {
 
 interface LlmResult {
   content: string;
+  /** 思考过程（DeepSeek reasoning_content / 智谱 thinking），仅观测用 */
+  reasoning: string | null;
+  /** 原始返回文本（观测用） */
+  raw: string;
+  /** 实际使用的模型 */
+  model: string;
   usage: LlmUsage | null;
 }
 
@@ -73,11 +79,15 @@ export async function llm(
     throw new Error(`LLM ${res.status}: ${text.slice(0, 300)}`);
   }
   const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string; reasoning_content?: string } }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
   };
+  const msg = data.choices?.[0]?.message;
   return {
-    content: data.choices?.[0]?.message?.content ?? "",
+    content: msg?.content ?? "",
+    reasoning: msg?.reasoning_content ?? null,
+    raw: msg?.content ?? "",
+    model: String(body.model),
     usage: data.usage
       ? { promptTokens: data.usage.prompt_tokens ?? 0, completionTokens: data.usage.completion_tokens ?? 0 }
       : null,
@@ -91,9 +101,15 @@ export async function llm(
 export async function llmJson<T>(
   messages: { role: string; content: string }[],
   opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
-): Promise<{ data: T; usage: LlmUsage | null }> {
+): Promise<{ data: T; usage: LlmUsage | null; reasoning: string | null; raw: string; model: string }> {
   const result = await llm(messages, opts);
-  return { data: extractJson<T>(result.content), usage: result.usage };
+  return {
+    data: extractJson<T>(result.content),
+    usage: result.usage,
+    reasoning: result.reasoning,
+    raw: result.raw,
+    model: result.model,
+  };
 }
 
 export function extractJson<T>(raw: string): T {

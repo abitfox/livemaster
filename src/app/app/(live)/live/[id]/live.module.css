@@ -676,3 +676,56 @@
     padding: 10px 16px 12px;
   }
 }
+
+/* ===== AI 引擎观测面板 ===== */
+.aiCard { display: flex; flex-direction: column; gap: 10px; }
+
+.aiHead { display: flex; align-items: center; justify-content: space-between; }
+
+.aiStatus {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px;
+}
+.aiStatusDot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.aiOk { color: var(--success); background: rgba(61, 214, 140, 0.1); }
+.aiWarn { color: var(--warning, #FFB84D); background: rgba(255, 184, 77, 0.12); }
+
+.aiMeta { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+
+.aiErr {
+  font-size: 11px; color: var(--danger);
+  background: rgba(255, 77, 106, 0.08);
+  border: 1px solid rgba(255, 77, 106, 0.2);
+  border-radius: 6px; padding: 6px 8px;
+  word-break: break-all;
+}
+
+.aiSec { font-size: 12px; }
+.aiSec summary {
+  cursor: pointer; color: var(--text-secondary);
+  user-select: none; padding: 4px 0;
+  font-weight: 500;
+}
+.aiSec summary:hover { color: var(--text-primary); }
+.aiPre {
+  margin: 4px 0 0; padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  font-size: 11px; line-height: 1.5;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--text-secondary);
+  max-height: 180px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+
+.aiHist { display: flex; flex-direction: column; gap: 4px; }
+.aiHistRow {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+.aiHistRow:last-child { border-bottom: none; }
+.aiOkTxt { color: var(--success); font-weight: 600; }
+.aiWarnTxt { color: var(--warning, #FFB84D); font-weight: 600; }
