@@ -80,7 +80,7 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
     for (const note of decision.systemNotes) {
       drafts.push({ type: "system", content: note, offsetMs: elapsedSec * 1000, meta: { level: decision.newLevel } });
     }
-    const newcomers = templateBots(decision.pushInCount, bots.length);
+    const newcomers = templateBots(decision.pushInCount, bots.length, session.scene);
     const { PERSONA_LABELS } = await import("@/lib/types");
     const inserted = await query<Record<string, unknown>>(
       `insert into bots (session_id, name, persona, persona_label, gender, age_range, occupation,

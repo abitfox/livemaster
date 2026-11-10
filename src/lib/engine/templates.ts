@@ -17,11 +17,24 @@ const TEMPLATE_BOTS: Omit<BotProfile, "id" | "sessionId">[] = [
   { name: "夜宵诗人", persona: "passive", personaLabel: "潜水党", gender: "男", ageRange: "18-25", occupation: "学生", knowledgeLevel: "novice", gradient: "g6", patience: 4, giftWillingness: 0, sampleLines: ["路过", "嗯嗯", "听着呢"], mood: 0, status: "online", leftReason: null },
 ];
 
-export function templateBots(count: number, offset = 0): Omit<BotProfile, "id" | "sessionId">[] {
+/** 费曼学习场景降级群：全部是学生（curious 为主 + 少量 scholar/passive），无杠精/土豪 */
+const FEYNMAN_BOTS: Omit<BotProfile, "id" | "sessionId">[] = [
+  { name: "刚入门的小林", persona: "curious", personaLabel: "好奇提问", gender: "男", ageRange: "18-25", occupation: "转行学习者", knowledgeLevel: "novice", gradient: "g2", patience: 4, giftWillingness: 0, sampleLines: ["老师，这里能再讲细一点吗", "我没跟上，能换个说法吗", "能举个身边的例子吗"], mood: 0, status: "online", leftReason: null },
+  { name: "备考的阿柚", persona: "curious", personaLabel: "好奇提问", gender: "女", ageRange: "18-25", occupation: "备考学生", knowledgeLevel: "beginner", gradient: "g2", patience: 4, giftWillingness: 0, sampleLines: ["所以重点是这个对吗", "这个和前面说的XX是什么关系", "笔记记下了，然后呢"], mood: 0, status: "online", leftReason: null },
+  { name: "较真小王", persona: "scholar", personaLabel: "学霸较真", gender: "男", ageRange: "18-25", occupation: "研究生", knowledgeLevel: "expert", gradient: "g4", patience: 4, giftWillingness: 0, sampleLines: ["这里有个概念要澄清", "严格来说应该是", "有没有反例或边界情况"], mood: 0, status: "online", leftReason: null },
+  { name: "安静旁听生", persona: "passive", personaLabel: "旁听型", gender: "女", ageRange: "26-35", occupation: "在职进修", knowledgeLevel: "beginner", gradient: "g6", patience: 5, giftWillingness: 0, sampleLines: ["……", "听着呢", "记一下"], mood: 0, status: "online", leftReason: null },
+  { name: "二刷的老周", persona: "scholar", personaLabel: "学霸较真", gender: "男", ageRange: "26-35", occupation: "在职进修", knowledgeLevel: "enthusiast", gradient: "g4", patience: 4, giftWillingness: 1, sampleLines: ["这个点二刷才听懂", "能不能对比一下XX和YY", "总结一下就是XX对吧"], mood: 0, status: "online", leftReason: null },
+  { name: "爱问的桃子", persona: "curious", personaLabel: "好奇提问", gender: "女", ageRange: "18-25", occupation: "新媒体编辑", knowledgeLevel: "novice", gradient: "g2", patience: 3, giftWillingness: 0, sampleLines: ["为什么呀", "然后呢然后呢", "这个在实际中怎么用"], mood: 0, status: "online", leftReason: null },
+  { name: "慢半拍小赵", persona: "curious", personaLabel: "好奇提问", gender: "男", ageRange: "26-35", occupation: "刚入门从业者", knowledgeLevel: "beginner", gradient: "g2", patience: 4, giftWillingness: 0, sampleLines: ["等一下，前面那步我没懂", "用大白话讲讲呢", "所以这一步的目的是啥"], mood: 0, status: "online", leftReason: null },
+  { name: "旁听的夜宵诗人", persona: "passive", personaLabel: "旁听型", gender: "男", ageRange: "18-25", occupation: "学生", knowledgeLevel: "novice", gradient: "g6", patience: 4, giftWillingness: 0, sampleLines: ["嗯嗯", "听着呢", "好"], mood: 0, status: "online", leftReason: null },
+];
+
+export function templateBots(count: number, offset = 0, scene?: string): Omit<BotProfile, "id" | "sessionId">[] {
+  const pool = scene === "feynman" ? FEYNMAN_BOTS : TEMPLATE_BOTS;
   const out: Omit<BotProfile, "id" | "sessionId">[] = [];
   for (let i = 0; i < count; i++) {
-    const base = TEMPLATE_BOTS[(i + offset) % TEMPLATE_BOTS.length];
-    const suffix = i >= TEMPLATE_BOTS.length ? `${Math.floor(i / TEMPLATE_BOTS.length) + 1}号` : "";
+    const base = pool[(i + offset) % pool.length];
+    const suffix = i >= pool.length ? `${Math.floor(i / pool.length) + 1}号` : "";
     out.push({ ...base, name: suffix ? `${base.name}${suffix}` : base.name });
   }
   return out;

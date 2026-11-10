@@ -3,7 +3,7 @@
  */
 import { requireUserId, AuthError } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
-import { FAST_MODEL, MODEL } from "@/lib/ai/llm";
+import { FAST_MODEL, MODEL, isAiEnabled } from "@/lib/ai/llm";
 import type {
   AiReport, BotProfile, Difficulty, LiveEvent, LiveSession, Scene, SessionStats,
 } from "@/lib/types";
@@ -103,13 +103,13 @@ async function generateBots(
   let usage: { promptTokens: number; completionTokens: number } | null = null;
   let kind = "bots_gen";
 
-  if (process.env.GLM_API_KEY) {
+  if (isAiEnabled()) {
     try {
       const { buildBotGenPrompt } = await import("@/lib/engine/director");
       const { llmJson } = await import("@/lib/ai/llm");
       const res = await llmJson<{ bots: Array<Record<string, unknown>> }>(
         buildBotGenPrompt(topic, scene, count),
-        // glm-5.3-flash 强制思考太慢（实测 25~90s），观众群用轻量模型 + 45s 超时降级
+        // 思考型模型思考占 token 预算，观众群用轻量模型 + 45s 超时降级
         { maxTokens: 2048, model: FAST_MODEL, timeoutMs: 45_000 },
       );
       profiles = res.data?.bots ?? null;
@@ -123,7 +123,7 @@ async function generateBots(
   if (!profiles) {
     kind = "bots_gen_template";
     const { templateBots } = await import("@/lib/engine/templates");
-    profiles = templateBots(count).map((b) => ({ ...b })) as Array<Record<string, unknown>>;
+    profiles = templateBots(count, 0, scene).map((b) => ({ ...b })) as Array<Record<string, unknown>>;
   }
 
   const { PERSONA_LABELS } = await import("@/lib/types");

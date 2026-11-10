@@ -183,17 +183,26 @@ export function buildBotGenPrompt(topic: string, scene: string, count: number): 
     {
       role: "system",
       content:
-        "你是模拟直播训练工具的「观众群生成引擎」。根据直播主题生成一批虚拟观众档案，只输出 JSON，不要任何其他文字。\n" +
+        "你是模拟直播训练工具的「观众群生成引擎」。根据直播主题与场景生成一批虚拟观众档案，只输出 JSON，不要任何其他文字。\n" +
         `输出格式：{"bots":[{"name":"昵称","persona":"supporter|curious|heckler|passive|scholar|whale|grump","gender":"男|女","ageRange":"18-25|26-35|36-45","occupation":"职业身份","knowledgeLevel":"novice|beginner|enthusiast|expert","gradient":"g1~g6 之间选，尽量分散","patience":1到5,"giftWillingness":0到5,"sampleLines":["2~3句口头禅或语气例句"]}]}\n` +
         "要求：\n" +
         "- 昵称必须像真实中文直播间昵称（如「阿柴不吃香菜」「老K聊币圈」「摸鱼的阿强」），禁止「用户123」式命名\n" +
-        "- persona 分布要写实：捧场和好奇占多数，杠精/易怒少量但必须存在，潜水党若干\n" +
-        "- knowledgeLevel 按主题自适应：专家到小白都要有（费曼场景的核心是不同深度的追问者）\n" +
+        "- persona 分布严格按用户消息中的场景要求执行\n" +
         "- sampleLines 要有强烈个人语气特征，是后续弹幕模仿的基调，禁止通用客套话",
     },
     {
       role: "user",
-      content: `直播主题：「${topic}」。场景：${scene === "feynman" ? "费曼学习（主播向观众讲解知识，观众应从学习视角追问）" : "主播排练（按该主题的真实目标观众画像生成）"}。生成 ${count} 个观众。`,
+      content:
+        scene === "feynman"
+          ? `直播主题：「${topic}」。场景：费曼学习——主播是讲解者，观众全部是来学这个主题的「学生」，与主播是师生交流关系。生成 ${count} 个学生观众。要求：\n` +
+            "- persona 只能选 curious（好奇提问型）或 scholar（学霸较真型）或 passive（安静旁听型）：curious 约 6~7 成、scholar 约 2 成、passive 其余；禁止 supporter/heckler/whale/grump\n" +
+            "- knowledgeLevel 由浅入深分布：novice 与 beginner 占多数、enthusiast 次之、expert 最多 1 人（班里学得好的同学），保证能形成「基础概念→原理→应用」的追问链\n" +
+            "- occupation 是正在学这个主题的人（备考学生、转行学习者、刚入门的从业者、在职进修者等），要贴合主题\n" +
+            "- sampleLines 是学生听课与课堂提问语气（如「老师这里能再讲细一点吗」「我没跟上，能换个说法吗」「所以结论是XX对吗」「这个和XX是什么关系」），禁止娱乐直播弹幕风\n" +
+            "- giftWillingness 大多为 0~1（学生场景礼物极少）"
+          : `直播主题：「${topic}」。场景：主播排练（按该主题的真实目标观众画像生成）。生成 ${count} 个观众。要求：\n` +
+            "- persona 分布写实：捧场 supporter 和好奇 curious 占多数，杠精 heckler 与易怒 grump 少量但必须存在，潜水党 passive 若干，土豪 whale 至多 1 人\n" +
+            "- knowledgeLevel 专家到小白都要有",
     },
   ];
 }
@@ -219,6 +228,15 @@ export function buildTickPrompt(opts: {
     )
     .join("\n");
 
+  const feynmanRules =
+    opts.scene === "feynman"
+      ? "\n- 费曼场景：你是正在听课的「学生」，与主播是师生交流，不是娱乐直播间\n" +
+        "- 弹幕与提问必须紧扣主播刚讲的内容，像课堂一样由浅入深：没听懂的概念→请主播解释或打比方→追问背后的原理→问应用场景与边界情况\n" +
+        "- 提问要基于该 Bot 的知识水平逐步深入，可以引用主播前面的原话来追问（如「你刚才说XX，那YY是怎么回事」）\n" +
+        "- 若主播已回应过某个提问，追问要在回应基础上深化（举一反三/特殊情况/与已学知识的联系），不要重复原问题\n" +
+        "- 禁止与主题无关的闲聊；禁止「扣1」「前排围观」式娱乐弹幕；gift 和 mood_change 尽量不用\n"
+      : "";
+
   return [
     {
       role: "system",
@@ -231,7 +249,8 @@ export function buildTickPrompt(opts: {
         "- mood_change 表示情绪明显变化，content 用第三人称短句（如「越听越激动」），仅在内容确实触发情绪时输出\n" +
         "- gift 仅当 Bot 情绪很好时偶尔出现，content 如「送出了 小心心」\n" +
         "- 禁止辱骂、政治、色情、违禁内容；禁止提任何真实平台名\n" +
-        "- 每次 3~6 条事件，别太多",
+        "- 每次 3~6 条事件，别太多" +
+        feynmanRules,
     },
     {
       role: "user",
