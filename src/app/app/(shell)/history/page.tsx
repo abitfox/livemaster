@@ -136,7 +136,6 @@ export default function HistoryPage() {
     <div className={s.wrap}>
       <div className={s.head}>
         <h1 className="page-title">历史场次</h1>
-        <Link href="/app/new" className="pill pill-primary pill-compact">+ 新建排练</Link>
       </div>
 
       {/* 筛选 pill 行 */}

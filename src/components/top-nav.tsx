@@ -96,7 +96,7 @@ export default function TopNav() {
         ) : (
           <>
             <Link href="/app/new" className="pill pill-primary pill-compact">
-              {isApp ? "+ 新建排练" : "进入工作台"}
+              {isApp ? "+ 开始模拟直播" : "进入工作台"}
             </Link>
             <div className={`nav-user ${menuOpen ? "open" : ""}`} ref={dropRef}>
               <button onClick={() => setMenuOpen((v) => !v)} aria-label="用户菜单">
@@ -140,7 +140,7 @@ export default function TopNav() {
                 </>
               ) : (
                 <>
-                  <Link href="/app/new" className="pill pill-primary drawer-btn" onClick={() => setDrawerOpen(false)}>新建排练</Link>
+                  <Link href="/app/new" className="pill pill-primary drawer-btn" onClick={() => setDrawerOpen(false)}>开始模拟直播</Link>
                   <button className="pill pill-ghost drawer-btn" onClick={handleLogout}>退出登录</button>
                 </>
               )}

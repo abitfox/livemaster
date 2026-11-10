@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import TopNav from "@/components/top-nav";
 import type { BotProfile, LiveEvent, LiveSession } from "@/lib/types";
 import styles from "./replay.module.css";
 
@@ -238,7 +237,6 @@ export default function ReplayPage() {
   if (!data && !loadErr) {
     return (
       <div className="page page-fade">
-        <TopNav />
         <div className="page-body">
           <div className={`${styles.skeletonBlock} skeleton`} style={{ height: 96 }} />
           <div className={styles.skeletonGrid}>
@@ -254,7 +252,6 @@ export default function ReplayPage() {
   if (loadErr || !session) {
     return (
       <div className="page page-fade">
-        <TopNav />
         <div className="page-body">
           <div className="error-card">
             <span>{loadErr ?? "场次不存在"}</span>
@@ -271,7 +268,6 @@ export default function ReplayPage() {
 
   return (
     <div className="page page-fade">
-      <TopNav />
       <main className={`${styles.pageBody} page-body`}>
         {/* ① 场次头 */}
         <div className={styles.replayHead}>

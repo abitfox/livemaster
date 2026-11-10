@@ -104,7 +104,7 @@ function NewInner() {
 
   return (
     <div className={s.wrap}>
-      <h1 className="page-title">新建排练</h1>
+      <h1 className="page-title">开始模拟直播</h1>
 
       {/* 第 1 步 · 主题 */}
       <section className={s.step}>
