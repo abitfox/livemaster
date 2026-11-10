@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api-helpers";
 import { runEngineTick } from "@/lib/engine/run-tick";
 import { appendEvents, loadSession } from "@/lib/engine/session-service";
-import { requireUserId, AuthError } from "@/lib/supabase/admin";
+import { requireUserId, AuthError } from "@/lib/auth";
 
 /** POST /api/live/send —— 主播发言：落 host 事件，并立即触发观众反应 */
 export async function POST(req: Request) {

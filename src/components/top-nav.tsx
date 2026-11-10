@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth-provider";
 
 interface UserState {
@@ -41,8 +40,10 @@ const APP_MENU = [
 
 /** 全站顶部导航：未登录（登录/免费开始排练）与已登录（工作台/头像下拉）双态 */
 export default function TopNav() {
-  const { openAuth, logout } = useAuth();
-  const [user, setUser] = useState<UserState | null>(null);
+  const { user: authUser, openAuth, logout } = useAuth();
+  const user: UserState | null = authUser
+    ? { email: authUser.email, nickname: authUser.nickname }
+    : null;
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -51,18 +52,6 @@ export default function TopNav() {
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return; // 未配置 Supabase：按未登录处理
-    const sync = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(
-        data.user?.email
-          ? { email: data.user.email, nickname: data.user.email.split("@")[0] }
-          : null,
-      );
-    };
-    sync();
-    const { data: sub } = supabase.auth.onAuthStateChange(sync);
     const onScroll = () => setScrolled(window.scrollY > 8);
     window.addEventListener("scroll", onScroll, { passive: true });
     const onClick = (e: MouseEvent) => {
@@ -71,8 +60,7 @@ export default function TopNav() {
     document.addEventListener("mousedown", onClick);
     return () => {
       window.removeEventListener("scroll", onScroll);
-      document.removeEventListener("mousedown", onClick);
-      sub.subscription.unsubscribe();
+      window.removeEventListener("mousedown", onClick);
     };
   }, []);
 

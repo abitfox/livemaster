@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/auth-provider";
 import s from "./page.module.css";
 
@@ -51,17 +50,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const supabase = createClient();
-      if (!supabase) return;
-      const { data } = await supabase.auth.getUser();
-      const user = data.user;
-      if (!user?.email) return;
-      setEmail(user.email);
-      setUserId(user.id);
-      setNickname(user.email.split("@")[0]);
-      // 昵称优先读 profiles 表
-      const res = await supabase.from("profiles").select("nickname").eq("id", user.id).single();
-      if (res.data?.nickname) setNickname(res.data.nickname as string);
+      const res = await fetch("/api/auth/profile");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.email) {
+        setEmail(data.email);
+        setUserId("me");
+        setNickname(data.nickname || data.email.split("@")[0]);
+      }
     })();
   }, []);
 
@@ -74,10 +70,13 @@ export default function SettingsPage() {
     }
     setNickSaving(true);
     try {
-      const supabase = createClient();
-      if (!supabase) throw new Error("登录服务未配置");
-      const { error } = await supabase.from("profiles").upsert({ id: userId, nickname: name });
-      if (error) throw error;
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "保存失败");
       toast("昵称已更新");
     } catch (e) {
       toast(e instanceof Error ? e.message : "保存失败", false);
@@ -108,10 +107,13 @@ export default function SettingsPage() {
     }
     setPwdSaving(true);
     try {
-      const supabase = createClient();
-      if (!supabase) throw new Error("登录服务未配置");
-      const { error } = await supabase.auth.updateUser({ password: pwd });
-      if (error) throw error;
+      const res = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: pwd }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "修改失败");
       setPwd("");
       setPwd2("");
       toast("密码已更新");
@@ -125,8 +127,8 @@ export default function SettingsPage() {
   async function finalDeleteAccount() {
     setDeleting(true);
     try {
-      const supabase = createClient();
-      if (supabase) await supabase.auth.signOut();
+      const res = await fetch("/api/auth/account", { method: "DELETE" });
+      if (!res.ok) throw new Error();
       setDelStage("none");
       router.push("/");
     } catch {

@@ -5,7 +5,7 @@ import type { Difficulty, Scene } from "@/lib/types";
 /** GET /api/sessions —— 历史场次列表 */
 export async function GET() {
   return handle(async () => {
-    const { requireUserId } = await import("@/lib/supabase/admin");
+    const { requireUserId } = await import("@/lib/auth");
     const userId = await requireUserId();
     return { sessions: await listSessions(userId) };
   });

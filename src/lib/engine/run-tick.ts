@@ -2,7 +2,8 @@
  * 直播引擎步进：tick 轮询与主播发言共用。
  * 流程：读状态 → 导演判定（热度/推流/退出）→ AI 批量生成事件 → 落库 → 返回增量。
  */
-import { requireUserId, AuthError } from "@/lib/supabase/admin";
+import { requireUserId, AuthError } from "@/lib/auth";
+import { query } from "@/lib/db";
 import {
   loadSession, loadBots, loadEvents, appendEvents, applyEngineState,
   updateBot, bumpStats, updateOnlinePeak, logUsage,
@@ -65,23 +66,23 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
       drafts.push({ type: "system", content: note, offsetMs: elapsedSec * 1000, meta: { level: decision.newLevel } });
     }
     const newcomers = templateBots(decision.pushInCount, bots.length);
-    const db = (await import("@/lib/supabase/admin")).getAdminClient();
     const { PERSONA_LABELS } = await import("@/lib/types");
-    const { data: inserted } = await db
-      .from("bots")
-      .insert(
-        newcomers.map((b) => ({
-          session_id: sessionId,
-          name: b.name,
-          persona: b.persona,
-          persona_label: PERSONA_LABELS[b.persona],
-          gender: b.gender, age_range: b.ageRange, occupation: b.occupation,
-          knowledge_level: b.knowledgeLevel, gradient: b.gradient,
-          patience: b.patience, gift_willingness: b.giftWillingness,
-          sample_lines: b.sampleLines, mood: b.mood, status: "online",
-        })),
-      )
-      .select();
+    const inserted = await query<Record<string, unknown>>(
+      `insert into bots (session_id, name, persona, persona_label, gender, age_range, occupation,
+       knowledge_level, gradient, patience, gift_willingness, sample_lines, mood, status)
+       select $1::uuid, x.* from (values ${newcomers.map((_, i) =>
+         `($${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}::int, $${i * 12 + 12}::int, $${i * 12 + 13}::jsonb, 0, 'online')`,
+       ).join(", ")}) as x (name, persona, persona_label, gender, age_range, occupation,
+       knowledge_level, gradient, patience, gift_willingness, sample_lines, mood, status)
+       returning *`,
+      [
+        sessionId,
+        ...newcomers.flatMap((b) => [
+          b.name, b.persona, PERSONA_LABELS[b.persona], b.gender, b.ageRange, b.occupation,
+          b.knowledgeLevel, b.gradient, b.patience, b.giftWillingness, JSON.stringify(b.sampleLines),
+        ]),
+      ],
+    );
     for (const bot of (inserted ?? []) as Record<string, unknown>[]) {
       drafts.push({
         botId: bot.id as string,
@@ -239,7 +240,7 @@ async function generateTickEvents(ctx: {
         }
       }
       produced = true;
-      const { requireUserId } = await import("@/lib/supabase/admin");
+      const { requireUserId } = await import("@/lib/auth");
       const userId = await requireUserId();
       await logUsage(userId, ctx.sessionId, "tick", res.usage);
     } catch (e) {

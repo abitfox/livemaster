@@ -1,7 +1,8 @@
 /**
- * 场次服务层：Route Handler 共用的 DB 读写逻辑（service_role + 显式 user_id 校验）。
+ * 场次服务层：Route Handler 共用的 DB 读写逻辑（Neon Postgres，显式 user_id 校验）。
  */
-import { getAdminClient, requireUserId, AuthError } from "@/lib/supabase/admin";
+import { requireUserId, AuthError } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import type {
   AiReport, BotProfile, Difficulty, LiveEvent, LiveSession, Scene, SessionStats,
 } from "@/lib/types";
@@ -11,12 +12,9 @@ export const EMPTY_STATS: SessionStats = {
   followCount: 0, enterCount: 0, leaveCount: 0, hostCount: 0, silenceCount: 0,
 };
 
-// DB 行类型（snake_case）与领域类型的映射
-type SessionRow = Record<string, unknown>;
-type BotRow = Record<string, unknown>;
-type EventRow = Record<string, unknown>;
+type Row = Record<string, unknown>;
 
-function mapSession(r: SessionRow): LiveSession {
+function mapSession(r: Row): LiveSession {
   return {
     id: r.id as string,
     userId: r.user_id as string,
@@ -32,15 +30,15 @@ function mapSession(r: SessionRow): LiveSession {
     peakOnline: Number(r.peak_online ?? 0),
     peakHeat: Number(r.peak_heat ?? 0),
     lastTickAt: (r.last_tick_at as string) ?? null,
-    startedAt: r.started_at as string,
-    endedAt: (r.ended_at as string) ?? null,
+    startedAt: (r.started_at as Date).toISOString(),
+    endedAt: r.ended_at ? (r.ended_at as Date).toISOString() : null,
     durationSec: (r.duration_sec as number) ?? null,
     stats: { ...EMPTY_STATS, ...((r.stats as SessionStats) ?? {}) },
     aiReport: (r.ai_report as AiReport) ?? null,
   };
 }
 
-function mapBot(r: BotRow): BotProfile {
+function mapBot(r: Row): BotProfile {
   return {
     id: r.id as string,
     sessionId: r.session_id as string,
@@ -61,7 +59,7 @@ function mapBot(r: BotRow): BotProfile {
   };
 }
 
-function mapEvent(r: EventRow): LiveEvent {
+function mapEvent(r: Row): LiveEvent {
   return {
     id: r.id as string,
     sessionId: r.session_id as string,
@@ -70,7 +68,7 @@ function mapEvent(r: EventRow): LiveEvent {
     content: r.content as string,
     meta: (r.meta as Record<string, unknown>) ?? {},
     offsetMs: Number(r.offset_ms ?? 0),
-    createdAt: r.created_at as string,
+    createdAt: (r.created_at as Date).toISOString(),
   };
 }
 
@@ -81,24 +79,14 @@ export async function createSessionWithBots(opts: {
   botCount: number;
 }): Promise<{ session: LiveSession; bots: BotProfile[] }> {
   const userId = await requireUserId();
-  const db = getAdminClient();
 
-  const { data: sRow, error: sErr } = await db
-    .from("live_sessions")
-    .insert({
-      user_id: userId,
-      topic: opts.topic,
-      scene: opts.scene,
-      difficulty: opts.difficulty,
-      heat: 10,
-      heat_level: 0,
-      last_tick_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-  if (sErr) throw new Error(`创建场次失败: ${sErr.message}`);
+  const sRow = await queryOne<Row>(
+    `insert into live_sessions (user_id, topic, scene, difficulty, heat, heat_level, last_tick_at)
+     values ($1, $2, $3, $4, 10, 0, now()) returning *`,
+    [userId, opts.topic, opts.scene, JSON.stringify(opts.difficulty)],
+  );
+  if (!sRow) throw new Error("创建场次失败");
 
-  // 生成 Bot 群（AI 失败/无 Key → 本地模板）
   const bots = await generateBots(userId, sRow.id as string, opts.topic, opts.scene, opts.botCount);
   return { session: mapSession(sRow), bots };
 }
@@ -110,7 +98,6 @@ async function generateBots(
   scene: Scene,
   count: number,
 ): Promise<BotProfile[]> {
-  const db = getAdminClient();
   let profiles: Array<Record<string, unknown>> | null = null;
   let usage: { promptTokens: number; completionTokens: number } | null = null;
   let kind = "bots_gen";
@@ -138,8 +125,7 @@ async function generateBots(
   }
 
   const { PERSONA_LABELS } = await import("@/lib/types");
-  const rows = profiles.slice(0, count).map((b, i) => ({
-    session_id: sessionId,
+  const rows: Array<Record<string, unknown>> = profiles.slice(0, count).map((b, i) => ({
     name: String(b.name ?? `观众${i + 1}`),
     persona: String(b.persona ?? "passive"),
     persona_label: PERSONA_LABELS[b.persona as keyof typeof PERSONA_LABELS] ?? String(b.persona ?? ""),
@@ -150,55 +136,65 @@ async function generateBots(
     gradient: String(b.gradient ?? `g${(i % 6) + 1}`),
     patience: Math.max(1, Math.min(5, Number(b.patience ?? 3))),
     gift_willingness: Math.max(0, Math.min(5, Number(b.giftWillingness ?? b.gift_willingness ?? 2))),
-    sample_lines: Array.isArray(b.sampleLines) ? b.sampleLines.slice(0, 3) : [],
-    mood: 0,
-    status: "online",
+    sample_lines: JSON.stringify(Array.isArray(b.sampleLines) ? b.sampleLines.slice(0, 3) : []),
   }));
 
-  const { data, error } = await db.from("bots").insert(rows).select();
-  if (error) throw new Error(`Bot 生成失败: ${error.message}`);
-
-  await db.from("ai_usage").insert({
-    user_id: userId, session_id: sessionId, kind, model: process.env.GLM_MODEL ?? "glm-5.3-flash",
-    prompt_tokens: usage?.promptTokens ?? 0, completion_tokens: usage?.completionTokens ?? 0,
+  // 多行 INSERT ... RETURNING
+  // VALUES 别名列不携带类型，int/jsonb 列需显式 cast
+  const CASTS: Record<string, string> = { patience: "::int", gift_willingness: "::int", sample_lines: "::jsonb" };
+  const cols = Object.keys(rows[0]);
+  const values: unknown[] = [];
+  const tuples = rows.map((r, ri) => {
+    cols.forEach((c, ci) => values.push(r[c]));
+    const base = ri * cols.length;
+    return `(${cols.map((c, ci) => `$${base + ci + 1}${CASTS[c] ?? ""}`).join(", ")})`;
   });
+  const inserted = await query<Row>(
+    // uuid 参数放在所有 tuple 参数之后，避免编号碰撞
+    `insert into bots (session_id, ${cols.join(", ")}) select $${values.length + 1}::uuid, x.* from (values ${tuples.join(", ")}) as x (${cols.join(", ")}) returning *`,
+    [...values, sessionId],
+  );
 
-  const { data: sysEv } = await db
-    .from("events")
-    .insert({ session_id: sessionId, type: "system", content: "开播 · 观众正在进入直播间", offset_ms: 0 })
-    .select()
-    .single();
-
-  void sysEv;
-  return (data ?? []).map(mapBot);
+  await query(
+    "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
+    [userId, sessionId, kind, process.env.GLM_MODEL ?? "glm-5.3-flash", usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
+  );
+  await query(
+    "insert into events (session_id, type, content, meta, offset_ms) values ($1, 'system', $2, '{}', 0)",
+    [sessionId, "开播 · 观众正在进入直播间"],
+  );
+  return inserted.map(mapBot);
 }
 
 /** 校验归属并加载场次 */
 export async function loadSession(sessionId: string): Promise<LiveSession> {
   const userId = await requireUserId();
-  const db = getAdminClient();
-  const { data, error } = await db
-    .from("live_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .eq("user_id", userId)
-    .single();
-  if (error || !data) throw new AuthError("场次不存在或无权访问");
-  return mapSession(data);
+  const row = await queryOne<Row>(
+    "select * from live_sessions where id = $1 and user_id = $2",
+    [sessionId, userId],
+  );
+  if (!row) throw new AuthError("场次不存在或无权访问");
+  return mapSession(row);
 }
 
 export async function loadBots(sessionId: string): Promise<BotProfile[]> {
-  const db = getAdminClient();
-  const { data } = await db.from("bots").select("*").eq("session_id", sessionId).order("joined_at");
-  return (data ?? []).map(mapBot);
+  const rows = await query<Row>("select * from bots where session_id = $1 order by joined_at", [sessionId]);
+  return rows.map(mapBot);
 }
 
 export async function loadEvents(sessionId: string, limit = 200, afterOffsetMs?: number): Promise<LiveEvent[]> {
-  const db = getAdminClient();
-  let q = db.from("events").select("*").eq("session_id", sessionId).order("offset_ms").limit(limit);
-  if (afterOffsetMs !== undefined) q = q.gt("offset_ms", afterOffsetMs);
-  const { data } = await q;
-  return (data ?? []).map(mapEvent);
+  if (afterOffsetMs !== undefined) {
+    const rows = await query<Row>(
+      "select * from events where session_id = $1 and offset_ms > $2 order by offset_ms limit $3",
+      [sessionId, Math.round(afterOffsetMs), limit],
+    );
+    return rows.map(mapEvent);
+  }
+  const rows = await query<Row>(
+    "select * from events where session_id = $1 order by offset_ms limit $2",
+    [sessionId, limit],
+  );
+  return rows.map(mapEvent);
 }
 
 export async function appendEvents(
@@ -212,22 +208,16 @@ export async function appendEvents(
   }>,
 ): Promise<LiveEvent[]> {
   if (!events.length) return [];
-  const db = getAdminClient();
-  const { data, error } = await db
-    .from("events")
-    .insert(
-      events.map((e) => ({
-        session_id: sessionId,
-        bot_id: e.botId ?? null,
-        type: e.type,
-        content: e.content,
-        meta: e.meta ?? {},
-        offset_ms: Math.round(e.offsetMs),
-      })),
-    )
-    .select();
-  if (error) throw new Error(`事件写入失败: ${error.message}`);
-  return (data ?? []).map(mapEvent);
+  // 逐条插入（单用户场景量小；保留 RETURNING 语义）
+  const out: LiveEvent[] = [];
+  for (const e of events) {
+    const row = await queryOne<Row>(
+      "insert into events (session_id, bot_id, type, content, meta, offset_ms) values ($1, $2, $3, $4, $5, $6) returning *",
+      [sessionId, e.botId ?? null, e.type, e.content, JSON.stringify(e.meta ?? {}), Math.round(e.offsetMs)],
+    );
+    if (row) out.push(mapEvent(row));
+  }
+  return out;
 }
 
 /** 应用导演步进结果到场次状态 */
@@ -241,85 +231,68 @@ export async function applyEngineState(
     peakHeat: number;
   },
 ): Promise<void> {
-  const db = getAdminClient();
-  await db
-    .from("live_sessions")
-    .update({
-      heat: patch.heat,
-      heat_level: patch.heatLevel,
-      level_hold_sec: patch.levelHoldSec,
-      silence_sec: patch.silenceSec,
-      peak_heat: patch.peakHeat,
-      last_tick_at: new Date().toISOString(),
-    })
-    .eq("id", sessionId);
+  await query(
+    `update live_sessions set heat = $1, heat_level = $2, level_hold_sec = $3, silence_sec = $4,
+     peak_heat = greatest(peak_heat, $5), last_tick_at = now() where id = $6`,
+    [patch.heat, patch.heatLevel, patch.levelHoldSec, patch.silenceSec, patch.peakHeat, sessionId],
+  );
 }
 
 export async function updateBot(sessionId: string, botId: string, patch: Partial<{ mood: number; status: string; leftReason: string }>): Promise<void> {
-  const db = getAdminClient();
-  const u: Record<string, unknown> = {};
-  if (patch.mood !== undefined) u.mood = Math.max(-100, Math.min(100, patch.mood));
-  if (patch.status) { u.status = patch.status; if (patch.status === "left") u.left_at = new Date().toISOString(); }
-  if (patch.leftReason !== undefined) u.left_reason = patch.leftReason;
-  if (Object.keys(u).length) {
-    await db.from("bots").update(u).eq("id", botId).eq("session_id", sessionId);
-  }
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  if (patch.mood !== undefined) { sets.push(`mood = $${vals.length + 1}`); vals.push(Math.max(-100, Math.min(100, patch.mood))); }
+  if (patch.status) { sets.push(`status = $${vals.length + 1}`); vals.push(patch.status); }
+  if (patch.status === "left") { sets.push(`left_at = now()`); }
+  if (patch.leftReason !== undefined) { sets.push(`left_reason = $${vals.length + 1}`); vals.push(patch.leftReason); }
+  if (!sets.length) return;
+  vals.push(sessionId, botId);
+  await query(`update bots set ${sets.join(", ")} where session_id = $${vals.length - 1} and id = $${vals.length}`, vals);
 }
 
 export async function bumpStats(sessionId: string, inc: Partial<Record<keyof SessionStats, number>>): Promise<SessionStats> {
-  const db = getAdminClient();
-  const { data } = await db.from("live_sessions").select("stats").eq("id", sessionId).single();
-  const stats: SessionStats = { ...EMPTY_STATS, ...((data?.stats as object) ?? {}) };
+  const row = await queryOne<{ stats: SessionStats }>("select stats from live_sessions where id = $1", [sessionId]);
+  const stats: SessionStats = { ...EMPTY_STATS, ...(row?.stats ?? {}) };
   for (const [k, v] of Object.entries(inc)) {
     stats[k as keyof SessionStats] += v ?? 0;
   }
-  await db.from("live_sessions").update({ stats }).eq("id", sessionId);
+  await query("update live_sessions set stats = $1 where id = $2", [JSON.stringify(stats), sessionId]);
   return stats;
 }
 
 export async function updateOnlinePeak(sessionId: string, onlineCount: number): Promise<void> {
-  const db = getAdminClient();
-  await db.from("live_sessions").update({ peak_online: onlineCount }).eq("id", sessionId).lt("peak_online", onlineCount);
+  await query("update live_sessions set peak_online = $1 where id = $2 and peak_online < $1", [onlineCount, sessionId]);
 }
 
 /** 结束场次：算时长、状态、返回 session */
 export async function endSession(sessionId: string, interrupted = false): Promise<LiveSession> {
   const userId = await requireUserId();
-  const db = getAdminClient();
-  const session = await loadSession(sessionId);
-  const endedAt = new Date().toISOString();
-  const durationSec = Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000);
-  const { data, error } = await db
-    .from("live_sessions")
-    .update({ status: interrupted ? "interrupted" : "ended", ended_at: endedAt, duration_sec: durationSec })
-    .eq("id", sessionId)
-    .eq("user_id", userId)
-    .select()
-    .single();
-  if (error) throw new Error(`结束场次失败: ${error.message}`);
-  return mapSession(data);
+  await loadSession(sessionId); // 归属校验
+  const row = await queryOne<Row>(
+    `update live_sessions set status = $1, ended_at = now(),
+     duration_sec = greatest(0, (extract(epoch from (now() - started_at))::int))
+     where id = $2 and user_id = $3 returning *`,
+    [interrupted ? "interrupted" : "ended", sessionId, userId],
+  );
+  if (!row) throw new Error("结束场次失败");
+  return mapSession(row);
 }
 
 export async function saveReport(sessionId: string, report: AiReport): Promise<void> {
-  const db = getAdminClient();
-  await db.from("live_sessions").update({ ai_report: report }).eq("id", sessionId);
+  await query("update live_sessions set ai_report = $1 where id = $2", [JSON.stringify(report), sessionId]);
 }
 
 export async function listSessions(userId: string): Promise<LiveSession[]> {
-  const db = getAdminClient();
-  const { data } = await db
-    .from("live_sessions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("started_at", { ascending: false })
-    .limit(100);
-  return (data ?? []).map(mapSession);
+  const rows = await query<Row>(
+    "select * from live_sessions where user_id = $1 order by started_at desc limit 100",
+    [userId],
+  );
+  return rows.map(mapSession);
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
   const userId = await requireUserId();
-  const db = getAdminClient();
-  await db.from("live_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+  await query("delete from live_sessions where id = $1 and user_id = $2", [sessionId, userId]);
 }
 
 export async function logUsage(
@@ -328,13 +301,8 @@ export async function logUsage(
   kind: string,
   usage: { promptTokens: number; completionTokens: number } | null,
 ): Promise<void> {
-  const db = getAdminClient();
-  await db.from("ai_usage").insert({
-    user_id: userId,
-    session_id: sessionId,
-    kind,
-    model: process.env.GLM_MODEL ?? "glm-5.3-flash",
-    prompt_tokens: usage?.promptTokens ?? 0,
-    completion_tokens: usage?.completionTokens ?? 0,
-  });
+  await query(
+    "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
+    [userId, sessionId, kind, process.env.GLM_MODEL ?? "glm-5.3-flash", usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
+  );
 }

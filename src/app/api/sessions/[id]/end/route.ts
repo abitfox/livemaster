@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: Params) {
       try {
         const { buildReportPrompt } = await import("@/lib/engine/director");
         const { llmJson } = await import("@/lib/ai/glm");
-        const { requireUserId } = await import("@/lib/supabase/admin");
+        const { requireUserId } = await import("@/lib/auth");
         const userId = await requireUserId();
         const events = await loadEvents(id, 400);
         const stats = session.stats;

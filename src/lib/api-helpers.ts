@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthError } from "@/lib/supabase/admin";
+import { AuthError } from "@/lib/auth";
 
 export function ok<T>(data: T) {
   return NextResponse.json(data as object);

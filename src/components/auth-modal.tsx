@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/auth-provider";
 
 type Mode = "login" | "register" | "forgot";
 
@@ -11,9 +11,10 @@ interface Props {
   onClose: () => void;
 }
 
-/** 登录/注册/忘记密码统一弹窗（复用 .modal-mask/.modal 体系） */
+/** 登录/注册/忘记密码统一弹窗（自建认证 API；复用 .modal-mask/.modal 体系） */
 export default function AuthModal({ initialMode, onClose }: Props) {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,56 +50,42 @@ export default function AuthModal({ initialMode, onClose }: Props) {
     return true;
   }
 
+  async function callApi(path: string, body: Record<string, string>) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "请求失败");
+    return data;
+  }
+
   async function submit() {
     if (loading || !validate()) return;
     setLoading(true);
     setError(null);
     setInfo(null);
-    const supabase = createClient();
-    if (!supabase) {
-      setError("登录服务未配置（缺少 Supabase 环境变量）");
-      setLoading(false);
-      return;
-    }
     try {
       if (mode === "register") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          if (error.message.includes("already registered")) {
-            setError("该邮箱已注册，试试直接登录？");
-          } else {
-            setError(error.message);
-          }
-          return;
-        }
-        if (!data.session) {
-          // Supabase 后台未关闭邮箱确认时会出现此情况
-          setInfo("注册成功。若需要邮箱验证，请查收邮件后登录（建议在 Supabase 后台关闭 Confirm email）。");
-          switchMode("login");
-          return;
-        }
+        await callApi("/api/auth/register", { email, password });
+        await refreshUser();
         router.push("/app");
         router.refresh();
       } else if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          setError("邮箱或密码不正确");
-          return;
-        }
+        await callApi("/api/auth/login", { email, password });
+        await refreshUser();
         router.push("/app");
         router.refresh();
       } else {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/auth/reset`,
-        });
-        if (error) {
-          setError("发送太频繁，请 1 分钟后再试");
-          return;
-        }
-        setInfo("重置邮件已发送，请查收（若无请检查垃圾邮件）");
+        // 公测期未接入邮件服务：提示到登录后修改
+        setInfo("公测期暂未接入邮件服务：如需重置密码，注册新账号即可；已登录用户可在「账号设置」修改密码。");
       }
-    } catch {
-      setError("网络异常，请稍后重试");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "网络异常，请稍后重试";
+      if (msg.includes("已注册")) setError("该邮箱已注册，试试直接登录？");
+      else if (mode === "login") setError("邮箱或密码不正确");
+      else setError(msg);
     } finally {
       setLoading(false);
     }
@@ -170,7 +157,7 @@ export default function AuthModal({ initialMode, onClose }: Props) {
               <>
                 <span className="spinner" /> 提交中…
               </>
-            ) : isForgot ? "发送重置邮件" : isLogin ? "登录" : "创建账号，开始排练"}
+            ) : isForgot ? "发送重置说明" : isLogin ? "登录" : "创建账号，开始排练"}
           </button>
 
           {isLogin && !isForgot && (

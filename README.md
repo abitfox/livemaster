@@ -11,7 +11,8 @@
 | 项 | 内容 |
 |----|------|
 | 框架 | Next.js 15（App Router）+ TypeScript |
-| 数据库 / 认证 | Supabase（PostgreSQL + Email 登录） |
+| 数据库 | Neon Postgres（Serverless Postgres，Vercel 集成） |
+| 认证 | 自建（users 表 + bcrypt + JWT HttpOnly Cookie，无外部认证服务） |
 | AI | GLM-5.3-Flash（智谱 BigModel API） |
 | 部署 | Vercel |
 
@@ -26,10 +27,12 @@ npm run dev                        # http://localhost:3000
 ### 环境变量（`.env.local`）
 
 ```bash
-# Supabase（Project Settings → API）
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...   # 服务端导演引擎写入用
+# Neon Postgres（Vercel 集成会自动注入；本地从 Neon Console 复制）
+DATABASE_URL=postgresql://user:pwd@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://user:pwd@ep-xxx.region.aws.neon.tech/neondb?sslmode=require  # DDL/迁移用
+
+# 会话签名密钥（生成：openssl rand -base64 32）
+AUTH_SECRET=
 
 # 智谱 AI（https://open.bigmodel.cn）
 GLM_API_KEY=xxx                    # 可选：不填时自动降级为本地模板弹幕，功能闭环完整
@@ -37,13 +40,10 @@ GLM_API_KEY=xxx                    # 可选：不填时自动降级为本地模�
 
 ### 数据库初始化
 
-在 Supabase SQL Editor 中执行 [`supabase/schema.sql`](supabase/schema.sql)，包含：
+在 Neon Console SQL Editor（或 psql）中执行 [`db/schema.sql`](db/schema.sql)，包含：
 
-- `live_sessions` / `bots` / `events` / `ai_usage` 四张表
-- RLS 用户隔离策略
-- 新用户自动创建 profile 的触发器
-
-> 认证设置中请**关闭 Confirm email**（注册即用，测试效率优先）。
+- `users` / `profiles` / `live_sessions` / `bots` / `events` / `ai_usage` 六张表
+- 认证为自建方案：bcrypt 密码哈希 + JWT 会话 Cookie，数据隔离由服务端 SQL 按 `user_id` 过滤
 
 ## 目录结构
 
@@ -59,13 +59,15 @@ src/
 │   │   ├── history/          #   历史场次
 │   │   └── settings/         #   账号设置
 │   └── api/
+│       ├── auth/             # 注册/登录/登出/资料/改密/删号（自建认证）
 │       ├── sessions/         # 场次 CRUD / 结束 / 中断
 │       └── live/             # tick（引擎步进）/ send（主播发言）
 ├── components/               # TopNav / AuthModal / AuthProvider
+├── db/schema.sql             # Neon Postgres DDL
 └── lib/
     ├── engine/               # 导演引擎（热度/流量池/退出判定/事件生成）
     ├── ai/glm.ts             # GLM-5.3-Flash 调用层
-    ├── supabase/             # client / server / admin 三客户端
+    ├── db.ts / auth.ts       # pg 连接池 / 自建认证（bcrypt + JWT）
     └── types.ts              # 领域类型与契约
 ```
 
@@ -77,8 +79,8 @@ src/
 
 ## 部署（Vercel）
 
-1. 导入本仓库
-2. 在 Project Settings → Environment Variables 配置上述 4 个变量
+1. 导入本仓库（Vercel 集成 Neon 后 `DATABASE_URL` 等变量自动注入）
+2. 手动补充 `AUTH_SECRET`（`openssl rand -base64 32` 生成）与 `GLM_API_KEY`
 3. Framework Preset 选 Next.js，直接 Deploy
 
 ## 版本规划

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/auth-provider";
 import type { LiveSession, Scene } from "@/lib/types";
 import s from "./page.module.css";
 
@@ -73,7 +73,7 @@ const EmptyIcon = () => (
 
 export default function AppHomePage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const { user } = useAuth();
   const [topic, setTopic] = useState("");
   const [scene, setScene] = useState<Scene>("train");
   const [sessions, setSessions] = useState<LiveSession[] | null>(null);
@@ -93,16 +93,11 @@ export default function AppHomePage() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const supabase = createClient();
-      if (!supabase) return;
-      const { data } = await supabase.auth.getUser();
-      if (data.user?.email) setEmail(data.user.email);
-    })();
     load();
   }, [load]);
 
-  const nickname = email ? email.split("@")[0] : "";
+  const email = user?.email ?? "";
+  const nickname = user?.nickname || email.split("@")[0];
   // 时段问候与副文案仅客户端计算，避免水合不一致
   const [greetText, setGreetText] = useState("");
   const [greetSub, setGreetSub] = useState(GREET_SUBS[0]);
