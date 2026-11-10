@@ -629,6 +629,15 @@ textarea.input { height: auto; min-height: 44px; padding: 11px 14px; resize: non
   font-size: 14px; color: var(--danger);
 }
 .auth-info { font-size: 13px; color: var(--success); }
+.auth-success {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--success);
+  animation: auth-success-in 240ms ease-out;
+}
+@keyframes auth-success-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .auth-submit { height: 44px; width: 100%; }
 .auth-link { font-size: 13px; color: var(--text-secondary); align-self: flex-end; }
 .auth-link:hover { color: #FFF; }

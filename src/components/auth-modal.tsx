@@ -21,6 +21,7 @@ export default function AuthModal({ initialMode, onClose }: Props) {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
@@ -31,10 +32,22 @@ export default function AuthModal({ initialMode, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // 成功提示停留片刻后关闭弹窗并进入工作台
+  useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => {
+      onClose();
+      router.push("/app");
+      router.refresh();
+    }, 900);
+    return () => clearTimeout(t);
+  }, [success, onClose, router]);
+
   function switchMode(m: Mode) {
     setMode(m);
     setError(null);
     setInfo(null);
+    setSuccess(null);
   }
 
   function validate(): boolean {
@@ -62,7 +75,7 @@ export default function AuthModal({ initialMode, onClose }: Props) {
   }
 
   async function submit() {
-    if (loading || !validate()) return;
+    if (loading || success || !validate()) return;
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -70,13 +83,11 @@ export default function AuthModal({ initialMode, onClose }: Props) {
       if (mode === "register") {
         await callApi("/api/auth/register", { email, password });
         await refreshUser();
-        router.push("/app");
-        router.refresh();
+        setSuccess("注册成功！正在进入工作台…");
       } else if (mode === "login") {
         await callApi("/api/auth/login", { email, password });
         await refreshUser();
-        router.push("/app");
-        router.refresh();
+        setSuccess("登录成功！正在进入工作台…");
       } else {
         // 公测期未接入邮件服务：提示到登录后修改
         setInfo("公测期暂未接入邮件服务：如需重置密码，注册新账号即可；已登录用户可在「账号设置」修改密码。");
@@ -151,9 +162,19 @@ export default function AuthModal({ initialMode, onClose }: Props) {
             </div>
           )}
           {info && <div className="auth-info">{info}</div>}
+          {success && (
+            <div className="auth-success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8.5 12.5 2.5 2.5 5-5"/></svg>
+              {success}
+            </div>
+          )}
 
-          <button className="pill pill-primary auth-submit" disabled={loading} onClick={submit}>
-            {loading ? (
+          <button className="pill pill-primary auth-submit" disabled={loading || !!success} onClick={submit}>
+            {success ? (
+              <>
+                <span className="spinner" /> 进入中…
+              </>
+            ) : loading ? (
               <>
                 <span className="spinner" /> 提交中…
               </>
