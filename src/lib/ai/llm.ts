@@ -1,19 +1,40 @@
 /**
- * GLM-5.3-Flash 调用层（移植自 33_KnowledgeGraph/misiki，改为非流式 JSON 输出模式）。
- * 直播 tick 场景不需要流式：一次调用返回一批结构化事件。
+ * 通用 LLM 调用层 —— 供应商无关，兼容所有 OpenAI Chat Completions 风格 API
+ * （DeepSeek / 智谱 GLM / Moonshot / 通义 等），通过环境变量一键切换：
+ *
+ *   LLM_API_KEY     API 密钥
+ *   LLM_BASE_URL    API 根地址（不含 /chat/completions）
+ *   LLM_MODEL       重任务模型（复盘报告等）
+ *   LLM_FAST_MODEL  轻量快速模型（建场观众群）
+ *   LLM_TICK_MODEL  tick 弹幕模型（高频，要求秒级响应）
+ *
+ * 兼容旧变量名 GLM_*（优先读 LLM_*，未设置时回退 GLM_*）。
+ * 切换示例（DeepSeek）：
+ *   LLM_BASE_URL=https://api.deepseek.com
+ *   LLM_MODEL=deepseek-flash  LLM_FAST_MODEL=deepseek-flash  LLM_TICK_MODEL=deepseek-flash
+ * 切换示例（智谱）：
+ *   LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+ *   LLM_MODEL=glm-5.3-flash  LLM_FAST_MODEL=glm-4-air
  */
 
-const MODEL = process.env.GLM_MODEL ?? "glm-5.3-flash";
-const BASE_URL = process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
+const BASE_URL =
+  process.env.LLM_BASE_URL ?? process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
+const API_KEY = process.env.LLM_API_KEY ?? process.env.GLM_API_KEY ?? "";
 
-// glm-5.3-flash 强制思考且无法关闭（单次大 JSON 生成实测 25~90s），
-// 高频调用（建场观众群 / tick 弹幕）改用无思考的轻量模型保证实时性；
-// 复盘报告等低频重任务仍用 GLM_MODEL。
-const FAST_MODEL = process.env.GLM_FAST_MODEL ?? "glm-4-air";
-export { FAST_MODEL };
+const MODEL = process.env.LLM_MODEL ?? process.env.GLM_MODEL ?? "glm-5.3-flash";
+export { MODEL };
+
+// 轻量模型：默认按供应商推断（DeepSeek → deepseek-flash，智谱 → glm-4-air）
+const DEFAULT_FAST = BASE_URL.includes("deepseek") ? "deepseek-flash" : "glm-4-air";
+export const FAST_MODEL = process.env.LLM_FAST_MODEL ?? process.env.GLM_FAST_MODEL ?? DEFAULT_FAST;
+export const TICK_MODEL = process.env.LLM_TICK_MODEL ?? process.env.GLM_TICK_MODEL ?? FAST_MODEL;
+
+// 智谱 glm-5.3-flash 强制思考且不可关闭；其思考等级用专属 thinking 参数。
+// 其他供应商（如 DeepSeek）不接受该参数，跳过，避免 400。
+const IS_ZHIPU = BASE_URL.includes("bigmodel");
 
 export function isAiEnabled(): boolean {
-  return !!process.env.GLM_API_KEY;
+  return !!API_KEY;
 }
 
 export interface LlmUsage {
@@ -31,26 +52,25 @@ export async function llm(
   messages: { role: string; content: string }[],
   opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
 ): Promise<LlmResult> {
-  const key = process.env.GLM_API_KEY;
-  if (!key) throw new Error("GLM_API_KEY 未配置");
+  if (!API_KEY) throw new Error("LLM_API_KEY 未配置");
   const body: Record<string, unknown> = {
     model: opts.model ?? MODEL,
     messages,
     max_tokens: opts.maxTokens ?? 2048,
     stream: false,
   };
-  if (opts.thinking) body.thinking = { level: opts.thinking };
+  if (opts.thinking && IS_ZHIPU) body.thinking = { level: opts.thinking };
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
     // AI 挂死不能拖垮请求：超时抛错 → 上层模板降级兜底
     signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`GLM ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`LLM ${res.status}: ${text.slice(0, 300)}`);
   }
   const data = (await res.json()) as {
     choices?: { message?: { content?: string } }[];

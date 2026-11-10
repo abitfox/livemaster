@@ -10,7 +10,7 @@ import {
 } from "@/lib/engine/session-service";
 import { stepDirector, MAX_ACTIVE_BOTS, buildTickPrompt } from "@/lib/engine/director";
 import { templateTickEvents, templateBots } from "@/lib/engine/templates";
-import { isAiEnabled, llmJson } from "@/lib/ai/glm";
+import { isAiEnabled, llmJson, TICK_MODEL } from "@/lib/ai/llm";
 import type { LiveEvent, TickResponse, BotProfile, EventType } from "@/lib/types";
 
 interface NewEventDraft {
@@ -231,9 +231,9 @@ async function generateTickEvents(ctx: {
       const res = await llmJson<{
         events: { botId: string; type: string; content: string }[];
       }>(prompt, {
-        // tick 高频且要求实时：轻量模型（glm-4-air 实测 ~2s）+ 20s 超时降级模板
+        // tick 高频且要求实时：轻量模型 + 20s 超时降级模板
         maxTokens: 1200,
-        model: process.env.GLM_TICK_MODEL ?? "glm-4-air",
+        model: TICK_MODEL,
         timeoutMs: 20_000,
       });
       const validTypes: EventType[] = ["chat", "question", "gift", "mood_change", "follow"];

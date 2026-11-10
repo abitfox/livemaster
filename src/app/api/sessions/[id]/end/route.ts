@@ -16,7 +16,7 @@ export async function POST(req: Request, { params }: Params) {
     if (!report) {
       try {
         const { buildReportPrompt } = await import("@/lib/engine/director");
-        const { llmJson } = await import("@/lib/ai/glm");
+        const { llmJson } = await import("@/lib/ai/llm");
         const { requireUserId } = await import("@/lib/auth");
         const userId = await requireUserId();
         const events = await loadEvents(id, 400);

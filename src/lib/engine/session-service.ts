@@ -3,7 +3,7 @@
  */
 import { requireUserId, AuthError } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
-import { FAST_MODEL } from "@/lib/ai/glm";
+import { FAST_MODEL, MODEL } from "@/lib/ai/llm";
 import type {
   AiReport, BotProfile, Difficulty, LiveEvent, LiveSession, Scene, SessionStats,
 } from "@/lib/types";
@@ -106,7 +106,7 @@ async function generateBots(
   if (process.env.GLM_API_KEY) {
     try {
       const { buildBotGenPrompt } = await import("@/lib/engine/director");
-      const { llmJson } = await import("@/lib/ai/glm");
+      const { llmJson } = await import("@/lib/ai/llm");
       const res = await llmJson<{ bots: Array<Record<string, unknown>> }>(
         buildBotGenPrompt(topic, scene, count),
         // glm-5.3-flash 强制思考太慢（实测 25~90s），观众群用轻量模型 + 45s 超时降级
@@ -159,7 +159,7 @@ async function generateBots(
 
   await query(
     "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
-    [userId, sessionId, kind, process.env.GLM_MODEL ?? "glm-5.3-flash", usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
+    [userId, sessionId, kind, MODEL, usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
   );
   await query(
     "insert into events (session_id, type, content, meta, offset_ms) values ($1, 'system', $2, '{}', 0)",
@@ -305,6 +305,6 @@ export async function logUsage(
 ): Promise<void> {
   await query(
     "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
-    [userId, sessionId, kind, process.env.GLM_MODEL ?? "glm-5.3-flash", usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
+    [userId, sessionId, kind, MODEL, usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
   );
 }
