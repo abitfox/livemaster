@@ -256,20 +256,29 @@ export default function LivePage() {
     }
   };
 
-  /* ---------- 结束直播 ---------- */
+  /* ---------- 结束直播（不阻塞：立即关弹窗 → 最多等 3s 接口 → 跳转复盘） ---------- */
   const handleEnd = async () => {
     setEnding(true);
     endedRef.current = true;
-    try {
-      await fetch(`/api/sessions/${id}/end`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interrupted: false }),
-      });
-    } catch {
-      /* 即使失败也跳转复盘页，页面会显示可恢复状态 */
-    }
-    router.push(`/app/replay/${id}`);
+    setEndOpen(false); // 弹窗立即关闭，用户无感
+    const replayUrl = `/app/replay/${id}`;
+    // keepalive 确保即使页面跳转，结束请求也能完成落库
+    const post = fetch(`/api/sessions/${id}/end`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interrupted: false }),
+      signal: AbortSignal.timeout(15000),
+      keepalive: true,
+    }).catch(() => undefined);
+    // 接口通常 1~2s 返回；超过 3s 不再等，跳转后接口自行完成
+    await Promise.race([post, new Promise((r) => setTimeout(r, 3000))]);
+    router.push(replayUrl);
+    // 兜底：客户端路由跳转失败（如服务器重启后旧页面 chunk 404）时，强制整页跳转
+    setTimeout(() => {
+      if (!window.location.pathname.startsWith(`/app/replay/${id}`)) {
+        window.location.assign(replayUrl);
+      }
+    }, 2500);
   };
 
   /* ---------- 热度迷你曲线 ---------- */

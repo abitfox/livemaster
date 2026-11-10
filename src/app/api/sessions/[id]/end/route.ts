@@ -51,9 +51,11 @@ async function generateReportInBackground(sessionId: string, session: LiveSessio
 /** POST /api/sessions/[id]/end —— 结束直播：立即落状态返回，复盘报告后台生成 */
 export async function POST(req: Request, { params }: Params) {
   return handle(async () => {
+    const t0 = Date.now();
     const { id } = await params;
     const body = (await req.json().catch(() => ({}))) as { interrupted?: boolean };
     const session = await endSession(id, !!body.interrupted);
+    console.log(`[end] ${id} 状态落库 ${Date.now() - t0}ms`);
 
     // 报告未生成时，响应结束后异步生成（复盘页轮询 aiReport 自动刷新）
     if (!session.aiReport) {
