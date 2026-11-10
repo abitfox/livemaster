@@ -122,7 +122,7 @@
   grid-template-columns: 280px 1fr 300px;
 }
 
-/* ---------- 左栏：弹幕流 ---------- */
+/* ---------- 左栏：关键信息 ---------- */
 .colLeft {
   position: relative;
   min-height: 0;
@@ -132,23 +132,54 @@
   overflow: hidden;
   background: var(--bg-panel);
 }
-.dmList {
+.keyHead {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--bg-panel-raised);
+}
+.keyTitle {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.keyBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--info);
+  background: rgba(77, 142, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(77, 142, 255, 0.4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.keyList {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 12px 16px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   scrollbar-width: thin;
   scrollbar-color: var(--bg-panel-raised) transparent;
 }
-.dmList::-webkit-scrollbar {
+.keyList::-webkit-scrollbar {
   width: 6px;
 }
-.dmList::-webkit-scrollbar-thumb {
+.keyList::-webkit-scrollbar-thumb {
   background: var(--bg-panel-raised);
   border-radius: 3px;
+}
+.keyEmpty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.7;
+  padding: 8px 2px;
 }
 
 /* 弹幕条目（240ms 滑入） */
@@ -394,26 +425,20 @@
   z-index: 5;
 }
 
-/* ---------- 中栏 ---------- */
+/* ---------- 中栏：完整对话流 + 发言区 ---------- */
 .colMid {
+  position: relative;
   min-height: 0;
   background: var(--bg-page);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.stage {
-  flex: 1;
-  min-height: 0;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 .questionBanner {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin: 12px 24px 0;
   padding: 10px 14px;
   border-radius: 12px;
   background: rgba(77, 142, 255, 0.1);
@@ -434,45 +459,34 @@
     transform: none;
   }
 }
-.stageMain {
+/* 中栏完整对话流（与左栏 keyList 同构，宽度更大） */
+.chatList {
   flex: 1;
   min-height: 0;
-  background: var(--bg-inset);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  overflow-y: auto;
+  padding: 16px 24px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-panel-raised) transparent;
 }
-.stagePlaceholder {
-  text-align: center;
-  color: var(--text-tertiary);
+.chatList::-webkit-scrollbar {
+  width: 6px;
 }
-.spIco {
-  margin: 0 auto 12px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
+.chatList::-webkit-scrollbar-thumb {
+  background: var(--bg-panel-raised);
+  border-radius: 3px;
 }
-.spTitle {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.spDesc {
-  font-size: 12px;
-  margin-top: 4px;
+/* 中栏对话放宽行数截断，主播与观众的长句完整可读 */
+.chatList .dmText {
+  -webkit-line-clamp: 6;
 }
 
-/* 观众情绪概览 */
+/* 观众情绪概览（左栏顶部固定） */
 .moodCard {
   padding: 12px 16px;
+  margin: 10px 12px 0;
   flex-shrink: 0;
 }
 .moodHead {
@@ -661,9 +675,6 @@
   .colRight {
     display: none;
   }
-  .grid.tabChat .colLeft {
-    display: flex;
-  }
   .grid.tabData .colRight {
     display: flex;
   }
@@ -672,8 +683,14 @@
     flex-shrink: 0;
     background: var(--bg-panel);
   }
-  .stage {
+  .chatList {
     padding: 12px 16px;
+  }
+  .questionBanner {
+    margin: 12px 16px 0;
+  }
+  .grid.tabKey .colLeft {
+    display: flex;
   }
   .composer {
     padding: 10px 16px 12px;

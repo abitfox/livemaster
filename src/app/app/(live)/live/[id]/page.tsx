@@ -44,6 +44,9 @@ function mergeEvents(prev: LiveEvent[], incoming: LiveEvent[]): LiveEvent[] {
   return merged;
 }
 
+/** 左栏「关键信息」收录的事件类型：提问 / 礼物 / 系统热度事件 / 观众流失 */
+const KEY_TYPES = new Set(["question", "gift", "system", "leave"]);
+
 interface SessionData {
   session: LiveSession;
   bots: BotProfile[];
@@ -79,7 +82,7 @@ export default function LivePage() {
   const [atBottom, setAtBottom] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
   const [aiLog, setAiLog] = useState<AiLogBlock[]>([]);
-  const [mobileTab, setMobileTab] = useState<"stage" | "chat" | "data">("stage");
+  const [mobileTab, setMobileTab] = useState<"chat" | "key" | "data">("chat");
 
   const pausedRef = useRef(false);
   pausedRef.current = paused;
@@ -348,6 +351,16 @@ export default function LivePage() {
     };
   }, [bots, moods]);
 
+  /* ---------- 左栏关键信息：提问 / 礼物 / 系统事件 / 流失 ---------- */
+  const keyEvents = useMemo(() => events.filter((e) => KEY_TYPES.has(e.type)), [events]);
+  const pendingQ = useMemo(
+    () =>
+      events.filter(
+        (e) => e.type === "question" && !answeredIds.has(e.id) && !((e.meta ?? {}) as Record<string, unknown>).answered,
+      ).length,
+    [events, answeredIds],
+  );
+
   /* ---------- 事件渲染 ---------- */
   function renderEvent(ev: LiveEvent) {
     const meta = (ev.meta ?? {}) as Record<string, unknown>;
@@ -500,59 +513,58 @@ export default function LivePage() {
             </div>
           </header>
 
-          {/* 三栏 */}
-          <div className={`${styles.grid} ${mobileTab === "chat" ? styles.tabChat : mobileTab === "data" ? styles.tabData : ""}`}>
-            {/* 左栏：弹幕流 */}
+          {/* 三栏：左=关键信息 · 中=完整对话流 · 右=数据/AI */}
+          <div className={`${styles.grid} ${mobileTab === "key" ? styles.tabKey : mobileTab === "data" ? styles.tabData : ""}`}>
+            {/* 左栏：关键信息（提问 / 礼物 / 系统事件 / 流失）+ 情绪概览 */}
             <aside className={styles.colLeft}>
-              <div className={styles.dmList} ref={listRef} onScroll={onListScroll}>
+              <div className={styles.keyHead}>
+                <span className={styles.keyTitle}>关键信息</span>
+                {pendingQ > 0 && <span className={styles.keyBadge}>{pendingQ} 条提问待回应</span>}
+              </div>
+              {moodPct && (
+                <div className={`panel ${styles.moodCard}`}>
+                  <div className={styles.moodHead}>
+                    <span className="panel-title" style={{ fontSize: 13 }}>观众情绪概览</span>
+                    <span className="text-ter num">在线 {online} 人</span>
+                  </div>
+                  <div className={styles.moodTrack}>
+                    <i style={{ width: `${moodPct.good}%`, background: "var(--success)" }} />
+                    <i style={{ width: `${moodPct.mid}%`, background: "var(--text-tertiary)" }} />
+                    <i style={{ width: `${moodPct.bad}%`, background: "var(--danger)" }} />
+                  </div>
+                  <div className={styles.moodLegend}>
+                    <span><i style={{ background: "var(--success)" }} />满意 <span className={styles.num}>{moodPct.good}%</span></span>
+                    <span><i style={{ background: "var(--text-tertiary)" }} />中性 <span className={styles.num}>{moodPct.mid}%</span></span>
+                    <span><i style={{ background: "var(--danger)" }} />不耐烦 <span className={styles.num}>{moodPct.bad}%</span></span>
+                  </div>
+                </div>
+              )}
+              <div className={styles.keyList}>
+                {keyEvents.length === 0 ? (
+                  <div className={styles.keyEmpty}>暂无关键事件 · 出现提问、礼物或热度变化时会在这里提示</div>
+                ) : (
+                  keyEvents.map(renderEvent)
+                )}
+              </div>
+            </aside>
+
+            {/* 中栏：完整对话流 + 发言区 */}
+            <main className={styles.colMid}>
+              {banner && (
+                <div className={styles.questionBanner}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
+                  {banner}
+                </div>
+              )}
+              <div className={styles.chatList} ref={listRef} onScroll={onListScroll}>
                 {events.map(renderEvent)}
               </div>
               {newCount > 0 && (
                 <button className={styles.backBottom} onClick={backToBottom}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>
-                  回到底部 · <span className={styles.num}>{newCount}</span> 条新弹幕
+                  回到底部 · <span className={styles.num}>{newCount}</span> 条新消息
                 </button>
               )}
-            </aside>
-
-            {/* 中栏：主视区 + 发言区 */}
-            <main className={styles.colMid}>
-              <div className={styles.stage}>
-                {banner && (
-                  <div className={styles.questionBanner}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
-                    {banner}
-                  </div>
-                )}
-                <div className={styles.stageMain}>
-                  <div className={styles.stagePlaceholder}>
-                    <div className={styles.spIco}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z" /><rect x="2" y="6" width="14" height="12" rx="2" /></svg>
-                    </div>
-                    <div className={styles.spTitle}>镜头占位 · 排练主视区</div>
-                    <div className={styles.spDesc}>正式版将在此显示摄像头画面或屏幕共享</div>
-                  </div>
-                </div>
-                {moodPct && (
-                  <div className={`panel ${styles.moodCard}`}>
-                    <div className={styles.moodHead}>
-                      <span className="panel-title" style={{ fontSize: 13 }}>观众情绪概览</span>
-                      <span className="text-ter num">在线 {online} 人</span>
-                    </div>
-                    <div className={styles.moodTrack}>
-                      <i style={{ width: `${moodPct.good}%`, background: "var(--success)" }} />
-                      <i style={{ width: `${moodPct.mid}%`, background: "var(--text-tertiary)" }} />
-                      <i style={{ width: `${moodPct.bad}%`, background: "var(--danger)" }} />
-                    </div>
-                    <div className={styles.moodLegend}>
-                      <span><i style={{ background: "var(--success)" }} />满意 <span className={styles.num}>{moodPct.good}%</span></span>
-                      <span><i style={{ background: "var(--text-tertiary)" }} />中性 <span className={styles.num}>{moodPct.mid}%</span></span>
-                      <span><i style={{ background: "var(--danger)" }} />不耐烦 <span className={styles.num}>{moodPct.bad}%</span></span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className={styles.composer}>
                 <div className={styles.quickPhrases}>
                   {QUICK_PHRASES.map((p, i) => (
@@ -698,13 +710,13 @@ export default function LivePage() {
 
           {/* 移动端底部三 tab */}
           <nav className={styles.mobileTabs}>
-            {(["stage", "chat", "data"] as const).map((t) => (
+            {(["chat", "key", "data"] as const).map((t) => (
               <button
                 key={t}
                 className={`${styles.mTab} ${mobileTab === t ? styles.mTabActive : ""}`}
                 onClick={() => setMobileTab(t)}
               >
-                {t === "stage" ? "主视区" : t === "chat" ? "弹幕" : "数据"}
+                {t === "chat" ? "对话" : t === "key" ? "关键" : "数据"}
               </button>
             ))}
           </nav>
