@@ -1,11 +1,4 @@
-import TopNav from "@/components/top-nav";
-
-/** /app 工作台布局：顶部导航 + 内容容器 */
+/** /app 分组布局：实际布局由 (shell)（常规页）与 (live)（直播沉浸页）各自提供 */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="page">
-      <TopNav />
-      <main className="page-body">{children}</main>
-    </div>
-  );
+  return children;
 }

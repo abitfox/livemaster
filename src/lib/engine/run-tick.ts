@@ -34,6 +34,16 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
   const bots = await loadBots(sessionId);
   const onlineBots = bots.filter((b) => b.status === "online").slice(0, MAX_ACTIVE_BOTS);
   const recentEvents = await loadEvents(sessionId, 40);
+
+  // 主播刚发言检测（两段式：send 只落库，反应延迟到本 tick）。
+  // 窗口 = 本 tick 时长 + 5s 容差，取最近一条 host 事件作为反应对象。
+  const hostRecent = recentEvents
+    .filter((e) => e.type === "host" && elapsedSec * 1000 - e.offsetMs <= (tickSec + 5) * 1000)
+    .sort((a, b) => b.offsetMs - a.offsetMs)[0];
+  const hostJustSpoke = !!hostContent || !!hostRecent;
+  const hostContentResolved = hostContent ?? hostRecent?.content;
+  if (hostJustSpoke) session.silenceSec = 0; // 发言即打破冷场（供后续判定参照）
+
   const questions = recentEvents.filter((e) => e.type === "question");
   const answeredIds = new Set(
     recentEvents.filter((e) => e.type === "question" && e.meta?.answered).map((e) => e.botId),
@@ -52,8 +62,8 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
       type: e.type, botId: e.botId, content: e.content, offsetMs: e.offsetMs,
     })),
     unansweredQuestions: unanswered.map((q) => ({ id: q.id, botId: q.botId, content: q.content })),
-    hostJustSpoke: !!hostContent,
-    hostContent,
+    hostJustSpoke,
+    hostContent: hostContentResolved,
     difficulty: session.difficulty,
     tickSec,
   });
@@ -121,7 +131,7 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
     speakers,
     onlineBots,
     recentEvents,
-    hostContent,
+    hostContent: hostContentResolved,
     unanswered: unanswered[0]?.content,
     heatLevel: decision.newLevel,
     pushedThisTick: decision.pushInCount > 0,
@@ -149,8 +159,8 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
     if (d.type === "enter") statsInc.enterCount = (statsInc.enterCount ?? 0) + 1;
     if (d.type === "leave") statsInc.leaveCount = (statsInc.leaveCount ?? 0) + 1;
   }
-  if (hostContent) statsInc.hostCount = 1;
   if (decision.newSilenceSec === 0 && session.silenceSec > 0) statsInc.silenceCount = 1;
+  // hostCount 由 /api/live/send 落库时统计，此处不再重复计数
   const stats = await bumpStats(sessionId, statsInc);
 
   const insertedEvents = await appendEvents(sessionId, drafts);

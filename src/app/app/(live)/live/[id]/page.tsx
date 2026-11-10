@@ -215,7 +215,7 @@ export default function LivePage() {
     setNewCount(0);
   };
 
-  /* ---------- 发送发言 ---------- */
+  /* ---------- 发送发言（两段式：主播消息立即上屏，观众反应由 tick 延迟送达） ---------- */
   const handleSend = async () => {
     const content = input.trim();
     if (!content || sending || paused || ending) return;
@@ -228,7 +228,8 @@ export default function LivePage() {
       });
       const json = await res.json();
       if (res.ok) {
-        applyTick(json, json.hostEvent ? [json.hostEvent as LiveEvent] : []);
+        setEvents((prev) => mergeEvents(prev, [json.hostEvent as LiveEvent]));
+        if (json.session) setData((d) => (d ? { ...d, session: json.session } : d));
         setInput("");
       }
     } catch {
@@ -326,7 +327,9 @@ export default function LivePage() {
         <div key={ev.id} className={`${styles.dm} ${styles.dmSelf}`}>
           <span className={`avatar avatar-24 ${styles.hostAvatar}`}>主</span>
           <div className={styles.dmBody}>
-            <span className={styles.dmName} style={{ color: "#FFF" }}>主播</span>
+            <span className={styles.hostName}>
+              <span className={styles.hostBadge}>主播</span>
+            </span>
             <span className={styles.dmText}>{ev.content}</span>
           </div>
         </div>
