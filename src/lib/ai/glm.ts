@@ -6,6 +6,12 @@
 const MODEL = process.env.GLM_MODEL ?? "glm-5.3-flash";
 const BASE_URL = process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
 
+// glm-5.3-flash 强制思考且无法关闭（单次大 JSON 生成实测 25~90s），
+// 高频调用（建场观众群 / tick 弹幕）改用无思考的轻量模型保证实时性；
+// 复盘报告等低频重任务仍用 GLM_MODEL。
+const FAST_MODEL = process.env.GLM_FAST_MODEL ?? "glm-4-air";
+export { FAST_MODEL };
+
 export function isAiEnabled(): boolean {
   return !!process.env.GLM_API_KEY;
 }
@@ -23,12 +29,12 @@ interface LlmResult {
 /** 非流式调用，返回纯文本。 */
 export async function llm(
   messages: { role: string; content: string }[],
-  opts: { maxTokens?: number; thinking?: "low" | "high" } = {},
+  opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
 ): Promise<LlmResult> {
   const key = process.env.GLM_API_KEY;
   if (!key) throw new Error("GLM_API_KEY 未配置");
   const body: Record<string, unknown> = {
-    model: MODEL,
+    model: opts.model ?? MODEL,
     messages,
     max_tokens: opts.maxTokens ?? 2048,
     stream: false,
@@ -39,6 +45,8 @@ export async function llm(
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    // AI 挂死不能拖垮请求：超时抛错 → 上层模板降级兜底
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -62,7 +70,7 @@ export async function llm(
  */
 export async function llmJson<T>(
   messages: { role: string; content: string }[],
-  opts: { maxTokens?: number; thinking?: "low" | "high" } = {},
+  opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
 ): Promise<{ data: T; usage: LlmUsage | null }> {
   const result = await llm(messages, opts);
   return { data: extractJson<T>(result.content), usage: result.usage };

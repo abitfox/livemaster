@@ -3,6 +3,7 @@
  */
 import { requireUserId, AuthError } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
+import { FAST_MODEL } from "@/lib/ai/glm";
 import type {
   AiReport, BotProfile, Difficulty, LiveEvent, LiveSession, Scene, SessionStats,
 } from "@/lib/types";
@@ -108,7 +109,8 @@ async function generateBots(
       const { llmJson } = await import("@/lib/ai/glm");
       const res = await llmJson<{ bots: Array<Record<string, unknown>> }>(
         buildBotGenPrompt(topic, scene, count),
-        { maxTokens: 4096, thinking: "low" },
+        // glm-5.3-flash 强制思考太慢（实测 25~90s），观众群用轻量模型 + 45s 超时降级
+        { maxTokens: 2048, model: FAST_MODEL, timeoutMs: 45_000 },
       );
       profiles = res.data?.bots ?? null;
       usage = res.usage;

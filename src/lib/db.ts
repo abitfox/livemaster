@@ -20,8 +20,15 @@ export const pool =
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     ssl: { rejectUnauthorized: false },
+    // Neon 休眠/网络抖动会掐死闲置连接：死连接被复用时查询会无限挂起。
+    // query_timeout 保证挂死查询 10s 内抛错释放连接；keepAlive 让内核尽早探活死链路。
+    statement_timeout: 10_000,
+    query_timeout: 10_000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   });
 globalForDb.__lmPool = pool;
+pool.on("error", (e) => console.error("[db:pool]", e.message));
 
 /** 执行 SQL，返回行数组 */
 export async function query<T extends QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> {

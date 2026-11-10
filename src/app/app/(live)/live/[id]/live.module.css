@@ -50,6 +50,21 @@
   color: var(--accent-live);
   flex-shrink: 0;
 }
+.exitLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: color 160ms, background 160ms;
+}
+.exitLink:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
 .timer {
   font-size: 16px;
   font-weight: 600;
@@ -631,6 +646,9 @@
 
 @media (max-width: 767px) {
   .topic {
+    display: none;
+  }
+  .exitTxt {
     display: none;
   }
   .grid {

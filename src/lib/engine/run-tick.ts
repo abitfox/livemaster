@@ -230,7 +230,12 @@ async function generateTickEvents(ctx: {
       });
       const res = await llmJson<{
         events: { botId: string; type: string; content: string }[];
-      }>(prompt, { maxTokens: 1500, thinking: "low" });
+      }>(prompt, {
+        // tick 高频且要求实时：轻量模型（glm-4-air 实测 ~2s）+ 20s 超时降级模板
+        maxTokens: 1200,
+        model: process.env.GLM_TICK_MODEL ?? "glm-4-air",
+        timeoutMs: 20_000,
+      });
       const validTypes: EventType[] = ["chat", "question", "gift", "mood_change", "follow"];
       for (const ev of res.data?.events ?? []) {
         if (!validTypes.includes(ev.type as EventType)) continue;
