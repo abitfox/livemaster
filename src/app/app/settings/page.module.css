@@ -1,0 +1,57 @@
+/* 账号设置页面级样式（移植 design/app/settings.html） */
+
+.wrap {
+  max-width: 616px;
+  margin: 0 auto;
+}
+
+.acctRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.acctInfo {
+  flex: 1;
+}
+.acctMail {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+/* 密码强度条 */
+.pwStrength {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.pwStrength i {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--bg-panel-raised);
+  transition: background 200ms;
+}
+
+/* 危险区行 */
+.dangerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+}
+.dangerRow + .dangerRow {
+  border-top: 1px solid var(--border-subtle);
+}
+.drTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+.drDesc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  line-height: 18px;
+}

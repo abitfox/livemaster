@@ -1,0 +1,125 @@
+/* 历史场次页面级样式（移植 design/app/history.html） */
+
+.wrap {
+  max-width: 928px;
+  margin: 0 auto;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filters .opt-pill {
+  height: 32px;
+}
+.filterGap {
+  width: 12px;
+  flex-shrink: 0;
+}
+
+/* 场次卡数据列 */
+.hstats {
+  display: flex;
+  margin-top: 10px;
+}
+.hstat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-right: 20px;
+  margin-right: 20px;
+  border-right: 1px solid var(--border-subtle);
+}
+.hstat:last-child {
+  border-right: 0;
+  padding-right: 0;
+  margin-right: 0;
+}
+.hsLabel {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.hsVal {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「…」菜单 */
+.moreWrap {
+  position: relative;
+}
+.moreMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 140px;
+  padding: 6px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  display: none;
+  z-index: 60;
+}
+.moreWrap.open .moreMenu {
+  display: block;
+}
+.moreMenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: left;
+  transition: background 150ms, color 150ms;
+}
+.moreMenu button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+.moreMenu button.del {
+  color: var(--danger);
+}
+.moreMenu button.del:hover {
+  background: rgba(255, 77, 106, 0.1);
+}
+
+/* 骨架卡占位 */
+.skelCard {
+  height: 128px;
+  margin-bottom: 12px;
+}
+
+/* 主播排练场景 pill（红色调） */
+.sceneRehearse {
+  color: var(--accent-live);
+  background: rgba(255, 77, 106, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 106, 0.4);
+}
+
+@media (max-width: 767px) {
+  .hstats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hstat {
+    border-right: 0;
+    padding-right: 0;
+    margin-right: 16px;
+  }
+}

@@ -1,0 +1,83 @@
+/* 工作台首页页面级样式（移植 design/app/home.html） */
+
+.greeting h1 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  min-height: 28px;
+}
+.greetSub {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* 快速开始卡 —— 本页唯一主导光带 */
+.quickCard {
+  position: relative;
+  overflow: hidden;
+  margin-top: 20px;
+  padding: 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+.quickCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-live), var(--accent-flow), transparent);
+  background-size: 200% 100%;
+  animation: flowBand 8s linear infinite;
+}
+@keyframes flowBand {
+  from { background-position: 200% 0; }
+  to { background-position: 0% 0; }
+}
+.quickCard h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.quickRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.quickRow .input {
+  flex: 1;
+  flex-basis: 100%;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 32px 0 14px;
+}
+.sectionHead h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.sectionHead a {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.sectionHead a:hover {
+  color: var(--text-primary);
+}
+
+/* 主播排练场景 pill（红色调） */
+.sceneRehearse {
+  color: var(--accent-live);
+  background: rgba(255, 77, 106, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 106, 0.4);
+}
+
+/* 骨架卡占位 */
+.skelCard {
+  height: 96px;
+  margin-bottom: 12px;
+}
