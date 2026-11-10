@@ -167,7 +167,11 @@ export function stepDirector(input: EngineStateInput): DirectorDecision {
   const scored = candidates
     .map((b) => ({ b, w: weights[b.persona] * (0.6 + Math.random() * 0.8) }))
     .sort((x, y) => y.w - x.w);
-  const speakerCount = Math.min(scored.length, 2 + Math.floor(Math.random() * 4));
+  // 发言人收敛：每轮 1~2 人（偶尔 3 人），避免弹幕与提问刷屏，给主播留出回应节奏
+  const speakerCount = Math.min(
+    scored.length,
+    1 + Math.floor(Math.random() * 2) + (Math.random() < 0.25 ? 1 : 0),
+  );
   d.speakerIds = scored.slice(0, speakerCount).map((s) => s.b.id);
 
   return d;
@@ -231,7 +235,8 @@ export function buildTickPrompt(opts: {
   const feynmanRules =
     opts.scene === "feynman"
       ? "\n- 费曼场景：你是正在听课的「学生」，与主播是师生交流，不是娱乐直播间\n" +
-        "- 弹幕与提问必须紧扣主播刚讲的内容，像课堂一样由浅入深：没听懂的概念→请主播解释或打比方→追问背后的原理→问应用场景与边界情况\n" +
+        "- 弹幕与提问必须挂在主播最近讲解的具体内容点上（引用或转述他刚说的概念、原话），跟随讲解进度走，他说到哪就问到哪，不得脱离进度另起炉灶\n" +
+        "- 像课堂一样由浅入深：没听懂的概念→请主播解释或打比方→追问背后的原理→问应用场景与边界情况\n" +
         "- 提问要基于该 Bot 的知识水平逐步深入，可以引用主播前面的原话来追问（如「你刚才说XX，那YY是怎么回事」）\n" +
         "- 若主播已回应过某个提问，追问要在回应基础上深化（举一反三/特殊情况/与已学知识的联系），不要重复原问题\n" +
         "- 禁止与主题无关的闲聊；禁止「扣1」「前排围观」式娱乐弹幕；gift 和 mood_change 尽量不用\n"
@@ -245,11 +250,14 @@ export function buildTickPrompt(opts: {
         '输出格式：{"events":[{"botId":"填给定的id","type":"chat|question|gift|mood_change|follow","content":"内容"}]}\n' +
         "规则：\n" +
         "- 只让给定的发言 Bot 说话；弹幕必须贴合每个 Bot 的语气样例与人格（杠精会抬杠但不辱骂；学霸较真；捧场爱夸）\n" +
-        "- chat 为普通弹幕（8~40 字）；question 为向主播的提问（要用该 Bot 的知识水平：小白问基础概念、专家问深度细节），question 一次最多 1 条\n" +
+        "- chat 为普通弹幕（8~40 字）；question 为向主播的提问（要用该 Bot 的知识水平：小白问基础概念、专家问深度细节）\n" +
+        "- question 节奏控制：一轮最多 1 条，且不是每轮都提问——大多数轮次只有弹幕没有提问；仅当主播刚讲出新概念、有 Bot 明显没听懂、或需要追问细节时才提问\n" +
+        "- 若已有未被回应的提问，本轮禁止再产生新的 question，可以由 Bot 催促或顺着该提问继续讨论\n" +
         "- mood_change 表示情绪明显变化，content 用第三人称短句（如「越听越激动」），仅在内容确实触发情绪时输出\n" +
         "- gift 仅当 Bot 情绪很好时偶尔出现，content 如「送出了 小心心」\n" +
         "- 禁止辱骂、政治、色情、违禁内容；禁止提任何真实平台名\n" +
-        "- 每次 3~6 条事件，别太多" +
+        "- 刚进场的 Bot 第一轮以简短的打招呼或听课反应为主，不要立刻提问\n" +
+        "- 每次 2~3 条事件，宁少勿多" +
         feynmanRules,
     },
     {
