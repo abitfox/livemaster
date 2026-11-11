@@ -237,6 +237,9 @@ export default function HistoryPage() {
                 </div>
               </div>
               <div className="hcard-actions">
+                {sess.status === "live" && (
+                  <Link href={`/app/live/${sess.id}`} className="pill pill-primary pill-compact">进入直播间</Link>
+                )}
                 <Link href={`/app/replay/${sess.id}`} className="pill pill-secondary pill-compact">看复盘</Link>
                 <div className={`${s.moreWrap} ${openMenuId === sess.id ? s.open : ""}`} ref={openMenuId === sess.id ? menuRef : undefined}>
                   <button

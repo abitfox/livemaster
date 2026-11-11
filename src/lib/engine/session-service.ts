@@ -73,32 +73,16 @@ function mapEvent(r: Row): LiveEvent {
   };
 }
 
-export async function createSessionWithBots(opts: {
-  topic: string;
-  scene: Scene;
-  difficulty: Difficulty;
-  botCount: number;
-}): Promise<{ session: LiveSession; bots: BotProfile[] }> {
-  const userId = await requireUserId();
-
-  const sRow = await queryOne<Row>(
-    `insert into live_sessions (user_id, topic, scene, difficulty, heat, heat_level, last_tick_at)
-     values ($1, $2, $3, $4, 10, 0, now()) returning *`,
-    [userId, opts.topic, opts.scene, JSON.stringify(opts.difficulty)],
-  );
-  if (!sRow) throw new Error("创建场次失败");
-
-  const bots = await generateBots(userId, sRow.id as string, opts.topic, opts.scene, opts.botCount);
-  return { session: mapSession(sRow), bots };
-}
-
-async function generateBots(
-  userId: string,
-  sessionId: string,
+/**
+ * 两阶段生命周期：
+ * 1. generateBotProfiles —— 纯 AI/模板生成观众画像，不写库（/api/sessions/preview-bots 用）
+ * 2. createSessionWithBots —— 点「开播」时才创建场次（status=live、started_at=now）并插入观众
+ */
+export async function generateBotProfiles(
   topic: string,
   scene: Scene,
   count: number,
-): Promise<BotProfile[]> {
+): Promise<{ profiles: Array<Record<string, unknown>>; kind: string; usage: { promptTokens: number; completionTokens: number } | null }> {
   let profiles: Array<Record<string, unknown>> | null = null;
   let usage: { promptTokens: number; completionTokens: number } | null = null;
   let kind = "bots_gen";
@@ -125,9 +109,12 @@ async function generateBots(
     const { templateBots } = await import("@/lib/engine/templates");
     profiles = templateBots(count, 0, scene).map((b) => ({ ...b })) as Array<Record<string, unknown>>;
   }
+  return { profiles, kind, usage };
+}
 
+export async function insertBots(sessionId: string, profiles: Array<Record<string, unknown>>): Promise<BotProfile[]> {
   const { PERSONA_LABELS } = await import("@/lib/types");
-  const rows: Array<Record<string, unknown>> = profiles.slice(0, count).map((b, i) => ({
+  const rows: Array<Record<string, unknown>> = profiles.map((b, i) => ({
     name: String(b.name ?? `观众${i + 1}`),
     persona: String(b.persona ?? "passive"),
     persona_label: PERSONA_LABELS[b.persona as keyof typeof PERSONA_LABELS] ?? String(b.persona ?? ""),
@@ -158,14 +145,49 @@ async function generateBots(
   );
 
   await query(
-    "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
-    [userId, sessionId, kind, MODEL, usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
-  );
-  await query(
     "insert into events (session_id, type, content, meta, offset_ms) values ($1, 'system', $2, '{}', 0)",
     [sessionId, "开播 · 观众正在进入直播间"],
   );
   return inserted.map(mapBot);
+}
+
+/** 点「开播」时才真正建场：status=live、started_at=now 由 DB 默认值给出，时间轴从此刻起算。
+ *  bots 可选：两阶段流程传入 preview 阶段生成的画像（跳过二次 AI 调用）；不传则现场生成（兼容旧调用）。 */
+export async function createSessionWithBots(opts: {
+  topic: string;
+  scene: Scene;
+  difficulty: Difficulty;
+  botCount: number;
+  bots?: Array<Record<string, unknown>> | null;
+  botsKind?: string;
+  botsUsage?: { promptTokens: number; completionTokens: number } | null;
+}): Promise<{ session: LiveSession; bots: BotProfile[] }> {
+  const userId = await requireUserId();
+
+  const sRow = await queryOne<Row>(
+    `insert into live_sessions (user_id, topic, scene, difficulty, heat, heat_level, last_tick_at)
+     values ($1, $2, $3, $4, 10, 0, now()) returning *`,
+    [userId, opts.topic, opts.scene, JSON.stringify(opts.difficulty)],
+  );
+  if (!sRow) throw new Error("创建场次失败");
+  const sessionId = sRow.id as string;
+
+  let kind = opts.botsKind ?? "bots_gen";
+  let usage = opts.botsUsage ?? null;
+  let profiles = opts.bots && opts.bots.length ? opts.bots : null;
+  if (!profiles) {
+    const gen = await generateBotProfiles(opts.topic, opts.scene, opts.botCount);
+    profiles = gen.profiles;
+    kind = gen.kind;
+    usage = gen.usage;
+  }
+
+  const bots = await insertBots(sessionId, profiles.slice(0, opts.botCount));
+  await query(
+    "insert into ai_usage (user_id, session_id, kind, model, prompt_tokens, completion_tokens) values ($1, $2, $3, $4, $5, $6)",
+    [userId, sessionId, kind, MODEL, usage?.promptTokens ?? 0, usage?.completionTokens ?? 0],
+  );
+  return { session: mapSession(sRow), bots };
 }
 
 /** 校验归属并加载场次 */

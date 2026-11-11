@@ -59,8 +59,9 @@ function NewInner() {
   const [durationMin, setDurationMin] = useState(20);
   const [diffOpen, setDiffOpen] = useState(true);
   const [phase, setPhase] = useState<Phase>("config");
-  const [session, setSession] = useState<LiveSession | null>(null);
+  const [profiles, setProfiles] = useState<BotProfile[] | null>(null);
   const [bots, setBots] = useState<BotProfile[]>([]);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,9 +71,34 @@ function NewInner() {
 
   const topicOk = topic.trim().length > 0;
 
+  /* 两阶段建场第 1 步：仅生成观众画像预览（不建场，切走不留孤儿场次） */
   async function generate() {
     if (!topicOk || phase === "generating") return;
     setPhase("generating");
+    setError(null);
+    try {
+      const res = await fetch("/api/sessions/preview-bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: topic.trim(), scene, botCount: 10 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "生成失败");
+      const list = (data.bots ?? []) as BotProfile[];
+      if (!list.length) throw new Error("观众生成结果为空");
+      setProfiles(list);
+      setBots(list);
+      setPhase("ready");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "生成失败");
+      setPhase("config");
+    }
+  }
+
+  /* 第 2 步：点「开播」才真正创建场次（此刻 started_at 才开始计时），随后进入直播间 */
+  async function goLive() {
+    if (!profiles || starting) return;
+    setStarting(true);
     setError(null);
     try {
       const res = await fetch("/api/sessions", {
@@ -82,21 +108,16 @@ function NewInner() {
           topic: topic.trim(),
           scene,
           difficulty: { temper, silence, durationMin },
+          bots: profiles,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "生成失败");
-      setSession(data.session as LiveSession);
-      setBots(data.bots as BotProfile[]);
-      setPhase("ready");
+      if (!res.ok) throw new Error(data.error || "创建场次失败");
+      router.push(`/app/live/${(data.session as LiveSession).id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "生成失败");
-      setPhase("config");
+      setError(e instanceof Error ? e.message : "创建场次失败");
+      setStarting(false);
     }
-  }
-
-  function goLive() {
-    if (session) router.push(`/app/live/${session.id}`);
   }
 
   const temperLabel = TEMPER_OPTIONS.find((o) => o.value === temper)?.label ?? "";
@@ -270,8 +291,8 @@ function NewInner() {
             {" · "}{temperLabel}脾气 / {silenceLabel}冷场 / {durationMin} 分钟
           </span>
           {phase === "ready" ? (
-            <button type="button" className="pill pill-primary" onClick={goLive}>
-              开播
+            <button type="button" className={`pill pill-primary ${starting ? "loading" : ""}`} disabled={starting} onClick={goLive}>
+              {starting ? "正在创建场次" : "开播"}
             </button>
           ) : (
             <button

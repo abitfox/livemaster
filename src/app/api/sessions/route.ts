@@ -11,7 +11,8 @@ export async function GET() {
   });
 }
 
-/** POST /api/sessions —— 新建场次 + 生成 Bot 观众群 */
+/** POST /api/sessions —— 真正建场（点「开播」时调用）。
+ *  bots 可选：传入 preview-bots 生成的画像则直接落库（不重复调 AI）；不传则现场生成（兼容旧流程）。 */
 export async function POST(req: Request) {
   return handle(async () => {
     const body = (await req.json()) as {
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
       scene?: Scene;
       difficulty?: Partial<Difficulty>;
       botCount?: number;
+      bots?: Array<Record<string, unknown>>;
+      botsKind?: string;
+      botsUsage?: { promptTokens: number; completionTokens: number } | null;
     };
     const topic = (body.topic ?? "").trim();
     if (!topic) throw new Error("主题不能为空");
@@ -28,7 +32,15 @@ export async function POST(req: Request) {
       silence: body.difficulty?.silence ?? "medium",
       durationMin: Math.max(5, Math.min(60, Number(body.difficulty?.durationMin ?? 20))),
     };
-    const botCount = Math.max(8, Math.min(15, Number(body.botCount ?? 10)));
-    return await createSessionWithBots({ topic, scene, difficulty, botCount });
+    const botCount = Math.max(8, Math.min(15, Number(body.botCount ?? body.bots?.length ?? 10)));
+    return await createSessionWithBots({
+      topic,
+      scene,
+      difficulty,
+      botCount,
+      bots: Array.isArray(body.bots) ? body.bots : null,
+      botsKind: body.botsKind,
+      botsUsage: body.botsUsage,
+    });
   });
 }
