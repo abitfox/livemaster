@@ -1,0 +1,282 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link [ref=e4] [cursor=pointer]:
+        - /url: /
+        - emphasis [ref=e5]: Live
+        - text: Master 直播大师
+      - navigation [ref=e6]:
+        - link "功能" [ref=e7] [cursor=pointer]:
+          - /url: /features
+        - link "主播排练" [ref=e8] [cursor=pointer]:
+          - /url: /scenarios/train
+        - link "费曼学习" [ref=e9] [cursor=pointer]:
+          - /url: /scenarios/feynman
+        - link "定价" [ref=e10] [cursor=pointer]:
+          - /url: /pricing
+        - link "更新日志" [ref=e11] [cursor=pointer]:
+          - /url: /changelog
+      - generic [ref=e12]:
+        - button "登录" [ref=e13] [cursor=pointer]
+        - button "免费开始排练" [ref=e14] [cursor=pointer]
+    - main [ref=e15]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: LIVE · 正在流行
+        - heading "练够了，直播才敢开始" [level=1] [ref=e20]
+        - paragraph [ref=e21]: AI 虚拟观众陪你排练每一场直播——弹幕、提问、冷场、礼物、流量推送，全部真实上演。播后还有热度复盘，告诉你在哪一秒丢了观众。
+        - generic [ref=e22]:
+          - button "免费开始排练" [ref=e23] [cursor=pointer]
+          - link "看看它怎么工作" [ref=e24] [cursor=pointer]:
+            - /url: "#how"
+        - paragraph [ref=e25]: 所有观众均为 AI 虚构 · 公测期免费 · 无需信用卡
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e29]: LIVE
+            - generic [ref=e31]: 排练间 · 主题：3 天涨粉 1000 的短视频方法论
+          - generic [ref=e33]:
+            - generic [ref=e34]:
+              - generic [ref=e35]: 摸
+              - generic [ref=e36]: 摸鱼的阿强主播这个开场有点东西，蹲住了
+            - generic [ref=e37]:
+              - generic [ref=e38]: 白
+              - generic [ref=e39]:
+                - text: 白嫖怪小美
+                - generic [ref=e40]: »问一下，私域流量到底怎么入门？
+            - generic [ref=e41]:
+              - generic [ref=e42]: 热
+              - generic [ref=e43]: 热情老哥大壮讲得好！刚刚那段我记笔记了
+            - generic [ref=e44]:
+              - generic [ref=e45]: 戏
+              - generic [ref=e46]: 戏精本精前面的别走，主播马上上干货
+            - generic [ref=e47]:
+              - generic [ref=e48]: 学
+              - generic [ref=e49]:
+                - text: 学习委员
+                - generic [ref=e50]: »第 3 点能再展开讲讲吗？
+            - generic [ref=e51]:
+              - generic [ref=e52]: 白
+              - generic [ref=e53]: 白嫖怪小美送出 火箭 ×1
+            - generic [ref=e54]:
+              - generic [ref=e55]: 摸
+              - generic [ref=e56]: 摸鱼的阿强主播这个开场有点东西，蹲住了
+            - generic [ref=e57]:
+              - generic [ref=e58]: 白
+              - generic [ref=e59]:
+                - text: 白嫖怪小美
+                - generic [ref=e60]: »问一下，私域流量到底怎么入门？
+            - generic [ref=e61]:
+              - generic [ref=e62]: 热
+              - generic [ref=e63]: 热情老哥大壮讲得好！刚刚那段我记笔记了
+            - generic [ref=e64]:
+              - generic [ref=e65]: 戏
+              - generic [ref=e66]: 戏精本精前面的别走，主播马上上干货
+            - generic [ref=e67]:
+              - generic [ref=e68]: 学
+              - generic [ref=e69]:
+                - text: 学习委员
+                - generic [ref=e70]: »第 3 点能再展开讲讲吗？
+            - generic [ref=e71]:
+              - generic [ref=e72]: 白
+              - generic [ref=e73]: 白嫖怪小美送出 火箭 ×1
+      - generic [ref=e74]:
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]: Pain Points
+            - heading "第一次开播的坑， 我们帮你提前踩完" [level=2] [ref=e79]: 第一次开播的坑，我们帮你提前踩完
+            - paragraph [ref=e80]: 没有人天生会直播。大多数主播的第一场翻车，都发生在没人告诉过他们的地方。
+          - generic [ref=e81]:
+            - generic [ref=e86]:
+              - heading "无人问津的冷启动" [level=3] [ref=e87]
+              - paragraph [ref=e88]: 开播 30 分钟，在线人数停在 3。没人告诉你，前 5 分钟的节奏决定了推流量的天花板。
+            - generic [ref=e94]:
+              - heading "接不住的提问" [level=3] [ref=e95]
+              - paragraph [ref=e96]: 观众抛来一个专业问题，你愣了 8 秒，人就走了。
+            - generic [ref=e101]:
+              - heading "意外的冷场" [level=3] [ref=e102]
+              - paragraph [ref=e103]: 讲完一段，弹幕安静了。你不知道是内容问题，还是节奏问题。
+            - generic [ref=e110]:
+              - heading "播完就忘" [level=3] [ref=e111]
+              - paragraph [ref=e112]: 下播之后只剩感觉："今天好像不太行"。行在哪、砸在哪，全都说不清。
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e115]: How It Works
+            - heading "三步，开始你的第一场排练" [level=2] [ref=e116]
+          - generic [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: "01"
+              - heading "说出你的主题" [level=3] [ref=e120]
+              - paragraph [ref=e121]: 输入"3 天涨粉 1000 的短视频方法论"，AI 为你生成一群性格迥异的虚拟观众：捧场的、抬杠的、提问的、随时准备退出的。
+            - generic [ref=e122]:
+              - generic [ref=e123]: "02"
+              - heading "开播，像真的一样讲" [level=3] [ref=e124]
+              - paragraph [ref=e125]: 弹幕实时滚动，提问等你回应，冷场会被感知，礼物会飞进来。热度从 L0 爬到 L3，流量池随你的表现推送。
+            - generic [ref=e126]:
+              - generic [ref=e127]: "03"
+              - heading "下播即复盘" [level=3] [ref=e128]
+              - paragraph [ref=e129]: 热度曲线、事件时间轴、每位观众的心态变化、AI 逐段点评，一场排练值回十场真实直播的教训。
+          - generic [ref=e130]:
+            - generic [ref=e131]: 主题输入
+            - generic [ref=e135]: 观众生成
+            - generic [ref=e139]: 开播排练
+            - generic [ref=e143]: 复盘报告
+        - generic [ref=e145]:
+          - generic [ref=e146]:
+            - generic [ref=e147]: Features
+            - heading "不只是聊天机器人， 是一个会惩罚你的直播间" [level=2] [ref=e148]: 不只是聊天机器人，是一个会惩罚你的直播间
+          - generic [ref=e149]:
+            - generic [ref=e157]:
+              - heading "有人格的观众群" [level=3] [ref=e158]
+              - paragraph [ref=e159]: 观众不是随机弹幕。每种人格（捧场型/抬杠型/学习型/路人型/土豪型/易怒型）有独立耐心值和退出条件，你讲得无聊，他们是真会走的。
+            - generic [ref=e164]:
+              - heading "热度与流量推送模拟" [level=3] [ref=e165]
+              - paragraph [ref=e166]: 从 L0 冷启动到 L3 爆款池，每一级推送标准透明可查。冷场敏感度、观众脾气都能调，练的就是你最怕的场景。
+            - generic [ref=e172]:
+              - heading "秒级复盘报告" [level=3] [ref=e173]
+              - paragraph [ref=e174]: 热度曲线 + 事件时间轴 + 观众心态变化时间线，AI 指出"第 4 分 12 秒的沉默让你掉了 5 个观众"这种级别的细节。
+            - generic [ref=e180]:
+              - heading "双场景训练" [level=3] [ref=e181]
+              - paragraph [ref=e182]: 主播排练之外还有费曼学习模式：把要学的知识讲给虚拟学生听，讲不明白的地方，学生真的会追问到你明白为止。
+        - generic [ref=e183]:
+          - generic [ref=e184]:
+            - generic [ref=e185]: Scenarios
+            - heading "两种场景，一种真实感" [level=2] [ref=e186]
+          - tablist "场景切换" [ref=e187]:
+            - tab "主播排练" [selected] [ref=e188] [cursor=pointer]
+            - tab "费曼学习" [ref=e189] [cursor=pointer]
+          - tabpanel [ref=e191]:
+            - generic [ref=e192]:
+              - heading "为真实开播而练 场景 A" [level=3] [ref=e193]:
+                - text: 为真实开播而练
+                - generic [ref=e194]: 场景 A
+              - paragraph [ref=e195]: 带货、知识分享、才艺、聊天直播——输入你的直播主题，AI 观众按目标平台观众画像生成。你会遇到刁钻提问、无聊退场、突然刷礼物，也会体验热度起飞的推流时刻。
+              - paragraph [ref=e196]:
+                - strong [ref=e197]: 适合：
+                - text: 准备开播的新主播 / 想打磨话术的老主播 / 团队直播培训。
+        - generic [ref=e213]:
+          - generic [ref=e214]:
+            - text: Replay
+            - heading "下播那一刻，答案已经生成" [level=2] [ref=e215]
+            - paragraph [ref=e216]: 这是第 12 号排练场次的真实复盘数据（演示）。
+            - generic [ref=e217]:
+              - generic [ref=e218]: AI 复盘报告 · 摘录
+              - paragraph [ref=e219]: 开场节奏偏慢，前 3 分钟没有给出钩子。第 7 分钟对"什么是私域流量"的回应非常清晰，建议保留原话。第 22 分钟的观点虽然拉高了热度，但换来了 3 位观众退出——这是热度与留存的权衡，取决于你的直播目标。
+          - generic [ref=e220]:
+            - generic [ref=e221]:
+              - text: 热度曲线 · 场次
+              - generic [ref=e223]: "#12"
+              - text: · 时长
+              - generic [ref=e224]: 24:35
+            - img "热度曲线示意图，从 L0 冷启动爬升至 L3 高热" [ref=e225]:
+              - generic [ref=e229]:
+                - generic "00:03:12 · 冷场 18 秒 · 在线 8→6" [ref=e231]
+                - generic "00:07:40 · 热度 L1→L2 · 推送开启" [ref=e233]
+                - generic "00:15:02 · 火箭礼物 · 在线 +4" [ref=e235]
+                - generic "00:22:31 · 热度冲至 L3" [ref=e237]
+              - generic [ref=e238]:
+                - generic [ref=e239]: 00:00
+                - generic [ref=e240]: 00:06
+                - generic [ref=e241]: 00:12
+                - generic [ref=e242]: 00:18
+                - generic [ref=e243]: 00:24
+            - generic [ref=e244]:
+              - generic [ref=e245]: 00:03:12冷场 18 秒 · 在线 8→6 · 观众"摸鱼的阿强"退出
+              - generic [ref=e246]: 00:07:40回应提问出色 · 热度 L1→L2 · 推送开启
+              - generic [ref=e247]: 00:15:02观众"白嫖怪小美"送出火箭 · 在线 +4
+              - generic [ref=e248]: 00:22:31争议观点引发刷屏 · 热度冲至 L3
+        - generic [ref=e250]:
+          - heading "你需要知道的几件事" [level=2] [ref=e251]
+          - list [ref=e252]:
+            - listitem [ref=e253]:
+              - generic [ref=e257]:
+                - strong [ref=e258]: 所有观众均为 AI 虚构
+                - text: ——直播间里的每一位观众、每一条弹幕、每一份礼物都由 AI 生成，不来自任何真人。
+            - listitem [ref=e259]:
+              - generic [ref=e263]:
+                - strong [ref=e264]: 热度模拟 ≠ 平台真实数据
+                - text: ——L0~L3 是教学模型，与任何直播平台的真实算法无关。
+            - listitem [ref=e265]:
+              - generic [ref=e269]:
+                - strong [ref=e270]: 你的内容属于你
+                - text: ——排练内容仅用于生成你自己的复盘报告，不用于训练模型，不向第三方提供。
+        - generic [ref=e271]:
+          - generic [ref=e272]:
+            - generic [ref=e273]: FAQ
+            - heading "常见问题" [level=2] [ref=e274]
+          - generic [ref=e275]:
+            - generic [ref=e276]:
+              - button "AI 观众是真人吗？" [ref=e277] [cursor=pointer]
+              - paragraph [ref=e280]: 不是。所有观众、弹幕、提问、礼物全部由 AI 实时生成，每个观众有独立性格设定，但没有任何真人在屏幕后面。
+            - generic [ref=e281]:
+              - button "热度等级和真实平台一样吗？" [ref=e282] [cursor=pointer]
+              - paragraph [ref=e285]: 不一样。L0 冷启动、L1 起量、L2 加速推送、L3 爆款池是一套透明教学模型，教会你“什么样的表现会换来推流”，但数值不对应任何真实平台。
+            - generic [ref=e286]:
+              - button "需要会写代码或配置什么吗？" [ref=e287] [cursor=pointer]
+              - paragraph [ref=e290]: 不需要。注册后输入直播主题，AI 生成观众群，点击开播即可。
+            - generic [ref=e291]:
+              - button "收费吗？" [ref=e292] [cursor=pointer]
+              - paragraph [ref=e295]: 公测期完全免费，所有功能开放。正式版定价将在本页提前公布，公测用户获得专属优惠。
+            - generic [ref=e296]:
+              - button "费曼学习模式是什么？" [ref=e297] [cursor=pointer]
+              - paragraph [ref=e300]: 把“讲给别人听”变成学习工具。虚拟学生会对你的讲解追问到底——讲得含糊，他们不会放过你。适合备考、学新技能、准备分享和授课。
+            - generic [ref=e301]:
+              - button "我的排练数据安全吗？" [ref=e302] [cursor=pointer]
+              - paragraph [ref=e305]: 排练内容只用于生成你自己的复盘报告，不用于训练模型，不向第三方提供。可随时在账号设置删除所有数据或注销账号。
+            - generic [ref=e306]:
+              - button "一场排练大概多久？" [ref=e307] [cursor=pointer]
+              - paragraph [ref=e310]: 由你决定。可设 10~60 分钟，也可随时手动结束。复盘报告在下播后 1 分钟内生成。
+        - generic [ref=e312]:
+          - heading "你的第一场直播， 值得先排练一遍" [level=2] [ref=e313]: 你的第一场直播，值得先排练一遍
+          - paragraph [ref=e314]: 注册只需一个邮箱，公测期全部功能免费。
+          - button "免费开始排练" [ref=e315] [cursor=pointer]
+      - generic [ref=e317]:
+        - generic [ref=e318]:
+          - generic [ref=e319]:
+            - link [ref=e320] [cursor=pointer]:
+              - /url: /
+              - emphasis [ref=e321]: Live
+              - text: Master 直播大师
+            - paragraph [ref=e322]: 开播前，先来练播间。AI 虚拟观众陪你排练每一场直播。
+          - generic [ref=e323]:
+            - heading "产品" [level=4] [ref=e324]
+            - list [ref=e325]:
+              - listitem [ref=e326]:
+                - link "功能" [ref=e327] [cursor=pointer]:
+                  - /url: /features
+              - listitem [ref=e328]:
+                - link "定价" [ref=e329] [cursor=pointer]:
+                  - /url: /pricing
+              - listitem [ref=e330]:
+                - link "更新日志" [ref=e331] [cursor=pointer]:
+                  - /url: /changelog
+          - generic [ref=e332]:
+            - heading "场景" [level=4] [ref=e333]
+            - list [ref=e334]:
+              - listitem [ref=e335]:
+                - link "主播排练" [ref=e336] [cursor=pointer]:
+                  - /url: /scenarios/train
+              - listitem [ref=e337]:
+                - link "费曼学习" [ref=e338] [cursor=pointer]:
+                  - /url: /scenarios/feynman
+          - generic [ref=e339]:
+            - heading "资源" [level=4] [ref=e340]
+            - list [ref=e341]:
+              - listitem [ref=e342]:
+                - link "博客" [ref=e343] [cursor=pointer]:
+                  - /url: /blog
+              - listitem [ref=e344]:
+                - link "FAQ" [ref=e345] [cursor=pointer]:
+                  - /url: "#faq"
+          - generic [ref=e346]:
+            - heading "法律" [level=4] [ref=e347]
+            - list [ref=e348]:
+              - listitem [ref=e349]:
+                - link "用户协议" [ref=e350] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=e351]:
+                - link "隐私政策" [ref=e352] [cursor=pointer]:
+                  - /url: "#"
+        - generic [ref=e353]:
+          - paragraph [ref=e354]: 本产品所有观众均为 AI 虚构，弹幕、提问、礼物与热度数据均为模拟内容，不构成任何真实平台的数据或建议。
+          - paragraph [ref=e355]:
+            - generic [ref=e356]: © 2025 LiveMaster 直播大师
+  - alert [ref=e357]
