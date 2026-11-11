@@ -2,6 +2,8 @@
 
 开播前的直播排练室 + 费曼式学习工具。
 
+**在线演示：[https://livemaster.cardecho.cn/](https://livemaster.cardecho.cn/)**
+
 输入一个直播主题，AI 生成一群有性格的虚拟观众 Bot（捧场型、抬杠型、学习型、易怒型……），然后像真实直播一样开一场**文字直播**：弹幕实时滚动、提问等你回应、冷场会被感知、礼物会飞进来、热度从 L0 爬到 L3、系统按表现推送流量。下播即生成复盘：热度曲线、事件时间轴、观众心态变化、AI 逐段点评。
 
 所有观众均为 AI 虚构。适用于新人主播排练，也可以把知识讲给"会追问的虚拟学生"听（费曼学习法）。
@@ -13,7 +15,7 @@
 | 框架 | Next.js 15（App Router）+ TypeScript |
 | 数据库 | Neon Postgres（Serverless Postgres，Vercel 集成） |
 | 认证 | 自建（users 表 + bcrypt + JWT HttpOnly Cookie，无外部认证服务） |
-| AI | GLM-5.3-Flash（智谱 BigModel API） |
+| AI | 供应商无关调用层（OpenAI Chat Completions 兼容），默认 DeepSeek，支持任意兼容端点切换 |
 | 部署 | Vercel |
 
 ## 快速开始
@@ -34,8 +36,12 @@ DATABASE_URL_UNPOOLED=postgresql://user:pwd@ep-xxx.region.aws.neon.tech/neondb?s
 # 会话签名密钥（生成：openssl rand -base64 32）
 AUTH_SECRET=
 
-# 智谱 AI（https://open.bigmodel.cn）
-GLM_API_KEY=xxx                    # 可选：不填时自动降级为本地模板弹幕，功能闭环完整
+# LLM（OpenAI Chat Completions 兼容端点；不填时自动降级为本地模板弹幕，功能闭环完整）
+LLM_API_KEY=xxx
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-flash        # 直播弹幕/复盘主模型
+LLM_FAST_MODEL=deepseek-flash   # 观众群画像等轻量任务
+LLM_TICK_MODEL=deepseek-flash   # 直播 tick 弹幕生成
 ```
 
 ### 数据库初始化
@@ -66,7 +72,7 @@ src/
 ├── db/schema.sql             # Neon Postgres DDL
 └── lib/
     ├── engine/               # 导演引擎（热度/流量池/退出判定/事件生成）
-    ├── ai/glm.ts             # GLM-5.3-Flash 调用层
+    ├── ai/llm.ts              # 供应商无关 LLM 调用层（LLM_* 优先，GLM_* 回退）
     ├── db.ts / auth.ts       # pg 连接池 / 自建认证（bcrypt + JWT）
     └── types.ts              # 领域类型与契约
 ```
@@ -74,13 +80,13 @@ src/
 ## 核心机制
 
 - **导演引擎**：确定性逻辑（热度计算、L0~L3 流量池晋级、冷场退出判定）用代码保证可复现可复盘；AI 只负责生成弹幕/提问/情绪/礼物等内容
-- **客户端 tick 驱动**：直播中页每 10 秒调用 `/api/live/tick`，无需常驻进程，适配 Vercel Serverless
-- **无 Key 降级**：未配置 `GLM_API_KEY` 时自动使用本地模板生成弹幕，完整流程可跑通
+- **低频调度 + 错峰放出**：定时 tick 每 60 秒一轮，主播发言后（冷却 20 秒）立即触发一轮贴题反应；单轮产出的弹幕在窗口内错峰陆续上屏，复盘时间轴与用户所见一致
+- **无 Key 降级**：未配置 `LLM_API_KEY` 时自动使用本地模板生成弹幕，完整流程可跑通
 
 ## 部署（Vercel）
 
 1. 导入本仓库（Vercel 集成 Neon 后 `DATABASE_URL` 等变量自动注入）
-2. 手动补充 `AUTH_SECRET`（`openssl rand -base64 32` 生成）与 `GLM_API_KEY`
+2. 手动补充 `AUTH_SECRET`（`openssl rand -base64 32` 生成）与 `LLM_*` 各项
 3. Framework Preset 选 Next.js，直接 Deploy
 
 ## 版本规划

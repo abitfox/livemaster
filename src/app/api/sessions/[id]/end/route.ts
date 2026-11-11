@@ -1,6 +1,6 @@
 import { handle } from "@/lib/api-helpers";
 import { after } from "next/server";
-import { endSession, saveReport, loadEvents, logUsage, bumpStats } from "@/lib/engine/session-service";
+import { endSession, saveReport, loadEvents, loadSession, logUsage, bumpStats } from "@/lib/engine/session-service";
 import type { AiReport, LiveSession } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
@@ -33,8 +33,15 @@ async function generateReportInBackground(sessionId: string, session: LiveSessio
       { maxTokens: 4000, timeoutMs: 90_000 },
     );
     const report: AiReport = { ...res.data, generatedAt: new Date().toISOString() };
+    // 报告生成耗时较长，期间场次可能已被用户删除（历史页删除）——落库前复查，避免外键报错
+    const still = await loadSession(sessionId).catch(() => null);
+    if (!still) {
+      console.log(`[report] ${sessionId} 已被删除，跳过报告落库`);
+      return;
+    }
     await saveReport(sessionId, report);
-    await logUsage(userId, sessionId, "report", res.usage);
+    // 用量统计为非关键指标，场次被并发删除时静默放弃
+    await logUsage(userId, sessionId, "report", res.usage).catch(() => {});
   } catch (e) {
     console.error("[report]", e);
     const fallback: AiReport = {
