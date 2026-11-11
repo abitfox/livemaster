@@ -31,6 +31,18 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
   const lastTickAt = session.lastTickAt ?? session.startedAt;
   const tickSec = Math.max(5, Math.min(60, Math.round((now - new Date(lastTickAt).getTime()) / 1000)));
 
+  // 节流：距上次引擎步进不足 20s 直接跳过（防止 send 触发与定时 tick 撞车 / 刷新重复调用）
+  if (now - new Date(lastTickAt).getTime() < 20_000) {
+    const botsNow = await loadBots(sessionId);
+    const onlineNow = botsNow.filter((b) => b.status === "online");
+    return {
+      session,
+      newEvents: [],
+      bots: onlineNow.map((b) => ({ id: b.id, mood: b.mood, status: "online" as const })),
+      onlineCount: onlineNow.length + session.audienceExtra,
+    };
+  }
+
   const bots = await loadBots(sessionId);
   const onlineBots = bots.filter((b) => b.status === "online").slice(0, MAX_ACTIVE_BOTS);
   const recentEvents = await loadEvents(sessionId, 40);
@@ -168,6 +180,21 @@ export async function runEngineTick(sessionId: string, hostContent?: string): Pr
   if (decision.newSilenceSec === 0 && session.silenceSec > 0) statsInc.silenceCount = 1;
   // hostCount 由 /api/live/send 落库时统计，此处不再重复计数
   const stats = await bumpStats(sessionId, statsInc);
+
+  // 批内错峰：为本次 tick 产出的事件分配递增放出延迟，铺满 tick 窗口；
+  // offsetMs 同步顺延（落库前调整），前端按 offsetMs 到点放出，复盘时间轴与用户所见一致
+  const n = drafts.length;
+  if (n > 1) {
+    const windowMs = Math.min(55_000, (tickSec + 5) * 1000);
+    const delays = Array.from({ length: n - 1 }, () => Math.random())
+      .sort((a, b) => a - b)
+      .map((v) => Math.round(2500 + v * (windowMs - 2500)));
+    drafts.forEach((d, i) => {
+      const delay = i === 0 ? 0 : delays[i - 1];
+      d.offsetMs += delay;
+      d.meta = { ...(d.meta ?? {}), releaseDelayMs: delay };
+    });
+  }
 
   const insertedEvents = await appendEvents(sessionId, drafts);
 

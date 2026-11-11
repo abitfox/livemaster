@@ -167,11 +167,8 @@ export function stepDirector(input: EngineStateInput): DirectorDecision {
   const scored = candidates
     .map((b) => ({ b, w: weights[b.persona] * (0.6 + Math.random() * 0.8) }))
     .sort((x, y) => y.w - x.w);
-  // 发言人收敛：每轮 1~2 人（偶尔 3 人），避免弹幕与提问刷屏，给主播留出回应节奏
-  const speakerCount = Math.min(
-    scored.length,
-    1 + Math.floor(Math.random() * 2) + (Math.random() < 0.25 ? 1 : 0),
-  );
+  // 发言人选择：每轮 2~3 人（60s 长窗口下单轮容量更大，靠批内错峰放出保持自然节奏）
+  const speakerCount = Math.min(scored.length, 2 + Math.floor(Math.random() * 2));
   d.speakerIds = scored.slice(0, speakerCount).map((s) => s.b.id);
 
   return d;
@@ -257,7 +254,7 @@ export function buildTickPrompt(opts: {
         "- gift 仅当 Bot 情绪很好时偶尔出现，content 如「送出了 小心心」\n" +
         "- 禁止辱骂、政治、色情、违禁内容；禁止提任何真实平台名\n" +
         "- 刚进场的 Bot 第一轮以简短的打招呼或听课反应为主，不要立刻提问\n" +
-        "- 每次 2~3 条事件，宁少勿多" +
+        "- 每次 2~4 条事件，宁少勿多" +
         feynmanRules,
     },
     {

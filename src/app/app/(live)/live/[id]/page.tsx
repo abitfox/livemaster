@@ -92,6 +92,10 @@ export default function LivePage() {
   atBottomRef.current = atBottom;
   const aiLogRef = useRef<HTMLDivElement>(null);
   const aiAtBottomRef = useRef(true);
+  const elapsedRef = useRef(0);
+  elapsedRef.current = elapsed;
+  /** 错峰放出队列：已落库但尚未到放出时间的事件（offsetMs 即放出时刻） */
+  const pendingRef = useRef<LiveEvent[]>([]);
 
   const session = data?.session ?? null;
   const bots = data?.bots ?? [];
@@ -105,7 +109,11 @@ export default function LivePage() {
       const json = (await res.json()) as SessionData & { error?: string };
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       setData(json);
-      setEvents(json.events ?? []);
+      // 刷新恢复：未到放出时间的事件进队列排期，已到点的直接显示
+      const el = Math.max(0, Math.floor((Date.now() - new Date(json.session.startedAt).getTime()) / 1000));
+      const all = json.events ?? [];
+      setEvents(all.filter((e) => e.offsetMs <= el * 1000 + 1000));
+      pendingRef.current = all.filter((e) => e.offsetMs > el * 1000 + 1000);
       const onlineBots = (json.bots ?? []).filter((b) => b.status === "online");
       setOnline(onlineBots.length + json.session.audienceExtra);
       setHeatHist([0, Math.round(json.session.heat * 0.6), json.session.heat]);
@@ -124,19 +132,43 @@ export default function LivePage() {
     void load();
   }, [load]);
 
-  /* ---------- 计时（暂停冻结） ---------- */
+  /* ---------- 放出队列：到点的事件才上屏（暂停时计时冻结 → 自动暂停放出） ---------- */
+  const flushPending = useCallback(() => {
+    const pend = pendingRef.current;
+    if (!pend.length) return;
+    const nowMs = elapsedRef.current * 1000;
+    const due = pend.filter((e) => e.offsetMs <= nowMs);
+    if (!due.length) return;
+    pendingRef.current = pend.filter((e) => e.offsetMs > nowMs);
+    setEvents((prev) => mergeEvents(prev, due));
+    const q = due.find((e) => e.type === "question");
+    if (q) setBanner(`新提问：${q.content}，点击查看`);
+  }, []);
+
+  /* ---------- 计时（暂停冻结）+ 每秒检查放出队列 ---------- */
   useEffect(() => {
     const t = setInterval(() => {
-      if (!pausedRef.current) setElapsed((v) => v + 1);
+      if (!pausedRef.current) {
+        setElapsed((v) => v + 1);
+        flushPending();
+      }
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [flushPending]);
 
   /* ---------- tick 增量应用 ---------- */
   const applyTick = useCallback(
     (payload: { session: LiveSession; newEvents: LiveEvent[]; bots: { id: string; mood: number }[]; onlineCount: number; aiTrace?: AiTrace }, extra: LiveEvent[] = []) => {
       setData((d) => (d ? { ...d, session: payload.session } : d));
-      setEvents((prev) => mergeEvents(prev, [...extra, ...payload.newEvents]));
+      // 错峰放出：未到放出时间（offsetMs 在未来）的事件进队列，到点的立即上屏
+      const nowMs = elapsedRef.current * 1000;
+      const due: LiveEvent[] = [];
+      const later: LiveEvent[] = [];
+      for (const ev of [...extra, ...payload.newEvents]) {
+        (ev.offsetMs <= nowMs + 1000 ? due : later).push(ev);
+      }
+      pendingRef.current = [...pendingRef.current, ...later];
+      setEvents((prev) => mergeEvents(prev, due));
       setOnline(payload.onlineCount);
       setHeatHist((h) => [...h.slice(-29), payload.session.heat]);
       setMoods((m) => {
@@ -156,13 +188,11 @@ export default function LivePage() {
         if (t.error) blocks.push({ id: `${t.ts}-err`, kind: "err", title: "错误", text: t.error });
         setAiLog((prev) => [...prev, ...blocks].slice(-60));
       }
-      const q = payload.newEvents.find((e) => e.type === "question");
-      if (q) setBanner(`新提问：${q.content}，点击查看`);
     },
     [],
   );
 
-  /* ---------- 每 10 秒 tick，失败静默重试 ---------- */
+  /* ---------- 引擎调度：开播 21s 首轮，此后每 60s 一轮（发言触发的 tick 由 send 接口驱动）；失败静默重试 ---------- */
   useEffect(() => {
     if (!id) return;
     let alive = true;
@@ -181,9 +211,11 @@ export default function LivePage() {
         /* 网络异常静默 */
       }
     };
-    const t = setInterval(tick, 10000);
+    const first = setTimeout(tick, 21_000);
+    const t = setInterval(tick, 60_000);
     return () => {
       alive = false;
+      clearTimeout(first);
       clearInterval(t);
     };
   }, [id, applyTick]);
@@ -294,6 +326,10 @@ export default function LivePage() {
     setEnding(true);
     endedRef.current = true; // 阻止 beforeunload 拦截与中断上报
     setEndOpen(false); // 弹窗立即关闭，用户无感
+    // 未放出的队列消息立即全部上屏（避免「直播里没说过、复盘里却有」的割裂）
+    const pend = pendingRef.current;
+    pendingRef.current = [];
+    if (pend.length) setEvents((prev) => mergeEvents(prev, pend));
     const replayUrl = `/app/replay/${id}`;
     try {
       // keepalive：即使页面立即卸载，结束落库请求仍会完成
