@@ -53,27 +53,40 @@ interface LlmResult {
   usage: LlmUsage | null;
 }
 
-/** 非流式调用，返回纯文本。 */
+/** 非流式调用，返回纯文本。
+ * thinking 思考强度：默认 "off"（最低）。智谱走 thinking.level（5.3-flash 强制思考关不掉，只能压低）；
+ * 其他供应商走 OpenAI 兼容的 reasoning_effort（off→minimal），若供应商不识别该参数返回 400 则自动去除重试。
+ */
 export async function llm(
   messages: { role: string; content: string }[],
-  opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
+  opts: { maxTokens?: number; thinking?: "off" | "low" | "high"; model?: string; timeoutMs?: number } = {},
 ): Promise<LlmResult> {
   if (!API_KEY) throw new Error("LLM_API_KEY 未配置");
+  const thinking = opts.thinking ?? "off";
   const body: Record<string, unknown> = {
     model: opts.model ?? MODEL,
     messages,
     max_tokens: opts.maxTokens ?? 2048,
     stream: false,
   };
-  if (opts.thinking && IS_ZHIPU) body.thinking = { level: opts.thinking };
+  if (IS_ZHIPU) body.thinking = { level: thinking === "high" ? "high" : "low" };
+  else if (thinking !== "high") body.reasoning_effort = thinking === "off" ? "minimal" : "low";
 
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    // AI 挂死不能拖垮请求：超时抛错 → 上层模板降级兜底
-    signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
-  });
+  const doFetch = (b: Record<string, unknown>) =>
+    fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(b),
+      // AI 挂死不能拖垮请求：超时抛错 → 上层模板降级兜底
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+    });
+
+  let res = await doFetch(body);
+  // 供应商不识别 reasoning_effort 时（400），去掉该参数重试一次
+  if (!res.ok && res.status === 400 && "reasoning_effort" in body) {
+    const { reasoning_effort: _drop, ...rest } = body;
+    res = await doFetch(rest);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`LLM ${res.status}: ${text.slice(0, 300)}`);
@@ -100,7 +113,7 @@ export async function llm(
  */
 export async function llmJson<T>(
   messages: { role: string; content: string }[],
-  opts: { maxTokens?: number; thinking?: "low" | "high"; model?: string; timeoutMs?: number } = {},
+  opts: { maxTokens?: number; thinking?: "off" | "low" | "high"; model?: string; timeoutMs?: number } = {},
 ): Promise<{ data: T; usage: LlmUsage | null; reasoning: string | null; raw: string; model: string }> {
   const result = await llm(messages, opts);
   return {
